@@ -114,9 +114,10 @@ export function recordMatchResult(input: MatchResultInput): MatchResult {
   if (team1Score !== undefined && team2Score !== undefined) {
     const validation = validateScores(team1Score, team2Score);
     if (!validation.valid) {
-      throw new ValidationError(validation.error, ['team1Score', 'team2Score']);
+      const result = validation as { valid: false; error: string };
+      throw new ValidationError(result.error, ['team1Score', 'team2Score']);
     }
-    winningTeam = validation.winner;
+    winningTeam = (validation as { valid: true; winner: 'team1' | 'team2' }).winner;
     scoreMargin = Math.abs(team1Score - team2Score);
     persistTeam1Score = team1Score;
     persistTeam2Score = team2Score;
