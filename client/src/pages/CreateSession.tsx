@@ -19,6 +19,7 @@ function CreateSession() {
   const [sessionType, setSessionType] = useState<SessionType>('open_play');
   const [gameMode, setGameMode] = useState<GameMode>('doubles');
   const [matchingMode, setMatchingMode] = useState<MatchingMode>('smart');
+  const [sessionDurationHours, setSessionDurationHours] = useState(4);
 
   // Player Check-In
   const [pendingPlayers, setPendingPlayers] = useState<PendingPlayer[]>([]);
@@ -76,6 +77,7 @@ function CreateSession() {
         sessionType,
         gameMode,
         matchingMode,
+        sessionDurationHours,
       });
 
       // 3. Check in all pending players (collect failures, don't abort)
@@ -184,6 +186,24 @@ function CreateSession() {
                 {validationErrors.courtCount}
               </p>
             )}
+          </div>
+
+          <div className="create-session__field">
+            <label htmlFor="session-duration">Session Duration (hours)</label>
+            <input
+              id="session-duration"
+              type="number"
+              min={0.5}
+              max={12}
+              step={0.5}
+              value={sessionDurationHours}
+              onChange={(e) => setSessionDurationHours(Number(e.target.value))}
+              aria-describedby="session-duration-helper"
+              className="create-session__input"
+            />
+            <p id="session-duration-helper" className="create-session__helper">
+              How long is this session? Used to calculate pacing projections.
+            </p>
           </div>
         </div>
 

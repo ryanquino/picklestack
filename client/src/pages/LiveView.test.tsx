@@ -208,6 +208,7 @@ const endedSessionData = {
       losses: 2,
       matchesPlayed: 7,
       winRate: 71,
+      pointDifferential: 15,
     },
   ],
   achievements: [],

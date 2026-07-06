@@ -10,9 +10,6 @@ import {
 // Constants
 // ============================================================
 
-/** Default session duration in minutes */
-const SESSION_DURATION_MINUTES = 240;
-
 /** Minimum games per player threshold for warning */
 const MIN_GAMES_WARNING_THRESHOLD = 6;
 
@@ -49,9 +46,10 @@ export function computePaceMetrics(sessionId: string): PaceMetrics {
     };
   }
 
-  // Calculate remaining time
+  // Calculate remaining time using session-configured duration
+  const sessionDurationMinutes = (session.session_duration_hours ?? 4) * 60;
   const sessionCreatedAt = new Date(session.created_at);
-  const sessionEndTime = new Date(sessionCreatedAt.getTime() + SESSION_DURATION_MINUTES * 60 * 1000);
+  const sessionEndTime = new Date(sessionCreatedAt.getTime() + sessionDurationMinutes * 60 * 1000);
   const now = new Date();
   const remainingMs = sessionEndTime.getTime() - now.getTime();
   const remainingMinutes = Math.max(0, remainingMs / (60 * 1000));

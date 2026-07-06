@@ -121,11 +121,11 @@ export function endSession(sessionId: string): SessionSummary {
     repository.updateMatch(match.id, { status: 'completed', completed_at: now });
   }
 
-  // Dissolve all fixed pairs before clearing queue entries
-  dissolveAllPairs(sessionId);
-
-  // Clear all queue entries
+  // Clear all queue entries first (they may reference fixed pairs via pair_id FK)
   repository.deleteQueueEntriesBySession(sessionId);
+
+  // Dissolve all fixed pairs (safe now that queue entries are gone)
+  dissolveAllPairs(sessionId);
 
   // Update session status to ended
   repository.updateSession(sessionId, { status: 'ended', updated_at: now });
@@ -197,6 +197,10 @@ export function validateSessionSettings(
     errors.matchingMode = 'Matching mode must be queue, smart, tournament, or skill_courts';
   }
 
+  if (typeof settings.sessionDurationHours !== 'number' || settings.sessionDurationHours < 0.5 || settings.sessionDurationHours > 12) {
+    errors.sessionDurationHours = 'Session duration must be between 0.5 and 12 hours';
+  }
+
   if (Object.keys(errors).length > 0) {
     return { valid: false, errors };
   }
@@ -240,6 +244,7 @@ export function updateSessionSettings(sessionId: string, settings: SessionSettin
     session_type: settings.sessionType,
     game_mode: settings.gameMode,
     matching_mode: settings.matchingMode,
+    session_duration_hours: settings.sessionDurationHours,
     updated_at: now,
   });
 }
@@ -263,5 +268,6 @@ export function getSessionSettings(sessionId: string): SessionSettings {
     sessionType: row.session_type as SessionType,
     gameMode: row.game_mode as GameMode,
     matchingMode: row.matching_mode as MatchingMode,
+    sessionDurationHours: row.session_duration_hours,
   };
 }

@@ -82,7 +82,7 @@ app.post('/api/sessions', (req: Request, res: Response, next: NextFunction) => {
 app.put('/api/sessions/:sessionId/settings', (req: Request, res: Response, next: NextFunction) => {
   try {
     const sessionId = req.params.sessionId as string;
-    const { name, courtCount, courtName, sessionType, gameMode, matchingMode } = req.body;
+    const { name, courtCount, courtName, sessionType, gameMode, matchingMode, sessionDurationHours } = req.body;
     sessionService.updateSessionSettings(sessionId, {
       name,
       courtCount,
@@ -90,6 +90,7 @@ app.put('/api/sessions/:sessionId/settings', (req: Request, res: Response, next:
       sessionType,
       gameMode,
       matchingMode,
+      sessionDurationHours: sessionDurationHours ?? 4,
     });
     res.status(200).json({ success: true });
   } catch (err) {
@@ -652,19 +653,34 @@ app.post('/api/sessions/:sessionId/end', (req: Request, res: Response, next: Nex
       }
     }
 
-    // Sort leaderboard: win rate desc → matches played desc → name asc
+    // Sort leaderboard: win rate desc → matches played desc → point differential desc
     const sorted = [...playerStats].sort((a, b) => {
       if (b.winRate !== a.winRate) return b.winRate - a.winRate;
       if (b.matchesPlayed !== a.matchesPlayed) return b.matchesPlayed - a.matchesPlayed;
-      return a.playerName.localeCompare(b.playerName);
+      return b.pointDifferential - a.pointDifferential;
     });
 
-    const leaderboard: LeaderboardEntry[] = sorted.map((stat, index) => ({
-      ...stat,
-      rank: index + 1,
-      isMvp: stat.playerId === mvpPlayerId,
-      achievements: achievementsByPlayer.get(stat.playerId) || [],
-    }));
+    // Dense ranking: tied players share the same rank
+    let currentRank = 1;
+    const leaderboard: LeaderboardEntry[] = sorted.map((stat, index) => {
+      if (index > 0) {
+        const prev = sorted[index - 1];
+        const isTied =
+          stat.winRate === prev.winRate &&
+          stat.matchesPlayed === prev.matchesPlayed &&
+          stat.pointDifferential === prev.pointDifferential;
+        if (!isTied) {
+          currentRank = currentRank + 1;
+        }
+      }
+
+      return {
+        ...stat,
+        rank: currentRank,
+        isMvp: stat.playerId === mvpPlayerId,
+        achievements: achievementsByPlayer.get(stat.playerId) || [],
+      };
+    });
 
     res.json({
       ...summary,

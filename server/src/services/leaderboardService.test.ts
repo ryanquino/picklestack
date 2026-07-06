@@ -10,15 +10,15 @@ import { PlayerStats, StarRating } from '../types';
  * For any set of player statistics, the leaderboard SHALL be sorted such that
  * for any two adjacent entries (rank i, rank i+1): either entry i has a strictly
  * higher win rate, or they have equal win rates and entry i has more total matches
- * played, or they have equal win rates and equal matches played and entry i's name
- * is alphabetically before or equal to entry i+1's name.
+ * played, or they have equal win rates and equal matches played and entry i has
+ * a higher point differential. If all criteria tie, players share the same rank.
  *
  * Validates: Requirements 7.1
  */
 
 /**
  * Replicates the leaderboard sort logic from leaderboardService.ts as a pure function.
- * Sort order: winRate desc → matchesPlayed desc → playerName asc (alphabetical)
+ * Sort order: winRate desc → matchesPlayed desc → pointDifferential desc
  */
 function sortLeaderboard(stats: PlayerStats[]): PlayerStats[] {
   return [...stats].sort((a, b) => {
@@ -30,14 +30,15 @@ function sortLeaderboard(stats: PlayerStats[]): PlayerStats[] {
     if (b.matchesPlayed !== a.matchesPlayed) {
       return b.matchesPlayed - a.matchesPlayed;
     }
-    // Tertiary: name alphabetical ascending
-    return a.playerName.localeCompare(b.playerName);
+    // Tertiary: point differential descending
+    return b.pointDifferential - a.pointDifferential;
   });
 }
 
 /**
  * Checks the sort invariant between two adjacent leaderboard entries.
- * Returns true if entry `a` (higher rank) correctly precedes entry `b` (lower rank).
+ * Returns true if entry `a` (higher rank) correctly precedes entry `b` (lower rank),
+ * or if they are tied (share the same rank).
  */
 function sortInvariantHolds(a: PlayerStats, b: PlayerStats): boolean {
   // Case 1: a has strictly higher win rate
@@ -46,11 +47,20 @@ function sortInvariantHolds(a: PlayerStats, b: PlayerStats): boolean {
   // Case 2: equal win rates, a has more matches played
   if (a.winRate === b.winRate && a.matchesPlayed > b.matchesPlayed) return true;
 
-  // Case 3: equal win rates and matches, a's name is alphabetically <= b's name
+  // Case 3: equal win rates and matches, a has higher point differential
   if (
     a.winRate === b.winRate &&
     a.matchesPlayed === b.matchesPlayed &&
-    a.playerName.localeCompare(b.playerName) <= 0
+    a.pointDifferential > b.pointDifferential
+  ) {
+    return true;
+  }
+
+  // Case 4: fully tied — both share the same rank
+  if (
+    a.winRate === b.winRate &&
+    a.matchesPlayed === b.matchesPlayed &&
+    a.pointDifferential === b.pointDifferential
   ) {
     return true;
   }
@@ -70,6 +80,7 @@ const playerStatsArb = (index: number): fc.Arbitrary<PlayerStats> =>
     matchesPlayed: fc.nat({ max: 100 }),
     winRate: fc.double({ min: 0, max: 100, noNaN: true }),
     streak: fc.integer({ min: -20, max: 20 }),
+    pointDifferential: fc.integer({ min: -200, max: 200 }),
   });
 
 // Generate an array of player stats with unique names and consistent data
@@ -84,7 +95,7 @@ const playerStatsArrayArb = fc
 
 describe('Property 10: Leaderboard sort correctness', () => {
   // **Validates: Requirements 7.1**
-  it('adjacent entries satisfy the sort invariant (win rate → matches → name)', () => {
+  it('adjacent entries satisfy the sort invariant (win rate → matches → point differential)', () => {
     fc.assert(
       fc.property(playerStatsArrayArb, (stats) => {
         const sorted = sortLeaderboard(stats);
@@ -97,8 +108,10 @@ describe('Property 10: Leaderboard sort correctness', () => {
           expect(
             sortInvariantHolds(current, next),
             `Sort invariant violated at positions ${i} and ${i + 1}: ` +
-              `"${current.playerName}" (winRate=${current.winRate}, matches=${current.matchesPlayed}) ` +
-              `should precede "${next.playerName}" (winRate=${next.winRate}, matches=${next.matchesPlayed})`
+              `"${current.playerName}" (winRate=${current.winRate}, matches=${current.matchesPlayed}, ` +
+              `ptDiff=${current.pointDifferential}) ` +
+              `should precede "${next.playerName}" (winRate=${next.winRate}, matches=${next.matchesPlayed}, ` +
+              `ptDiff=${next.pointDifferential})`
           ).toBe(true);
         }
       }),
@@ -145,7 +158,7 @@ describe('Property 10: Leaderboard sort correctness', () => {
   });
 
   // **Validates: Requirements 7.1**
-  it('when win rates and matches are equal, names are in alphabetical order', () => {
+  it('when win rates and matches are equal, higher point differential results in higher rank', () => {
     fc.assert(
       fc.property(playerStatsArrayArb, (stats) => {
         const sorted = sortLeaderboard(stats);
@@ -154,12 +167,12 @@ describe('Property 10: Leaderboard sort correctness', () => {
           const current = sorted[i];
           const next = sorted[i + 1];
 
-          // Only check name ordering when both win rate and matches are equal
+          // Only check point differential when win rate and matches are equal
           if (
             current.winRate === next.winRate &&
             current.matchesPlayed === next.matchesPlayed
           ) {
-            expect(current.playerName.localeCompare(next.playerName)).toBeLessThanOrEqual(0);
+            expect(next.pointDifferential).toBeLessThanOrEqual(current.pointDifferential);
           }
         }
       }),

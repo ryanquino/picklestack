@@ -29,6 +29,7 @@ const playerStatsArb = (options?: { minMatchesPlayed?: number }): fc.Arbitrary<P
     matchesPlayed: fc.integer({ min: minMatches, max: 200 }),
     winRate: fc.double({ min: 0, max: 100, noNaN: true }),
     streak: fc.integer({ min: -20, max: 20 }),
+    pointDifferential: fc.integer({ min: -200, max: 200 }),
   }).filter(p => p.matchesPlayed >= p.wins + p.losses || true)
     .map(p => ({
       ...p,

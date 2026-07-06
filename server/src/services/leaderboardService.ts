@@ -9,7 +9,8 @@ import { getSessionAchievementsAll } from './achievementsService';
 /**
  * Generates a full leaderboard for a session.
  *
- * Sorting: Win_Rate descending → matches played descending → name alphabetical ascending.
+ * Sorting: Win_Rate descending → matches played descending → point differential descending.
+ * Tied players share the same rank (dense ranking).
  * Includes all players (even those with 0 matches).
  * Formats win rate to one decimal place.
  * Highlights MVP, Iron Player, and Undefeated players.
@@ -26,7 +27,7 @@ export function generateLeaderboard(sessionId: string): LeaderboardEntry[] {
   // Determine MVP: highest win rate among players with 3+ matches
   const mvpPlayerId = determineMvp(stats);
 
-  // Sort: winRate desc → matchesPlayed desc → playerName asc (alphabetical)
+  // Sort: winRate desc → matchesPlayed desc → pointDifferential desc
   const sorted = [...stats].sort((a, b) => {
     // Primary: win rate descending
     if (b.winRate !== a.winRate) {
@@ -36,19 +37,31 @@ export function generateLeaderboard(sessionId: string): LeaderboardEntry[] {
     if (b.matchesPlayed !== a.matchesPlayed) {
       return b.matchesPlayed - a.matchesPlayed;
     }
-    // Tertiary: name alphabetical ascending
-    return a.playerName.localeCompare(b.playerName);
+    // Tertiary: point differential descending
+    return b.pointDifferential - a.pointDifferential;
   });
 
-  // Build leaderboard entries with rank, MVP flag, and achievements
+  // Dense ranking: tied players share the same rank, next rank increments by 1
+  let currentRank = 1;
   return sorted.map((playerStats, index) => {
+    if (index > 0) {
+      const prev = sorted[index - 1];
+      const isTied =
+        playerStats.winRate === prev.winRate &&
+        playerStats.matchesPlayed === prev.matchesPlayed &&
+        playerStats.pointDifferential === prev.pointDifferential;
+      if (!isTied) {
+        currentRank = currentRank + 1;
+      }
+    }
+
     const playerAchievements = achievements.filter(
       (a) => a.playerId === playerStats.playerId
     );
 
     return {
       ...playerStats,
-      rank: index + 1,
+      rank: currentRank,
       isMvp: playerStats.playerId === mvpPlayerId,
       achievements: playerAchievements,
     };
@@ -64,19 +77,20 @@ export function generateLeaderboard(sessionId: string): LeaderboardEntry[] {
  * MVP is the player with the highest win rate among players with 3+ matches.
  * If no player has 3+ matches, returns null (no MVP).
  * If multiple players tie for highest win rate with 3+ matches,
- * the one with more matches played wins; further ties broken by name alphabetically.
+ * the one with more matches played wins; further ties broken by point differential.
+ * If still tied, the first player encountered wins (arbitrary among equals).
  */
 function determineMvp(
-  stats: { playerId: string; playerName: string; winRate: number; matchesPlayed: number }[]
+  stats: { playerId: string; playerName: string; winRate: number; matchesPlayed: number; pointDifferential: number }[]
 ): string | null {
   const eligible = stats.filter((s) => s.matchesPlayed >= 3);
   if (eligible.length === 0) return null;
 
-  // Sort eligible by winRate desc, then matchesPlayed desc, then name asc
+  // Sort eligible by winRate desc, then matchesPlayed desc, then pointDifferential desc
   const sorted = [...eligible].sort((a, b) => {
     if (b.winRate !== a.winRate) return b.winRate - a.winRate;
     if (b.matchesPlayed !== a.matchesPlayed) return b.matchesPlayed - a.matchesPlayed;
-    return a.playerName.localeCompare(b.playerName);
+    return b.pointDifferential - a.pointDifferential;
   });
 
   return sorted[0].playerId;

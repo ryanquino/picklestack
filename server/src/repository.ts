@@ -15,6 +15,7 @@ export interface SessionRow {
   session_type: string;
   game_mode: string;
   matching_mode: string;
+  session_duration_hours: number;
   live_view_url: string;
   created_at: string;
   updated_at: string;
@@ -498,6 +499,7 @@ export interface SessionSettingsRow {
   session_type: string;
   game_mode: string;
   matching_mode: string;
+  session_duration_hours: number;
 }
 
 export function updateSessionSettings(sessionId: string, settings: SessionSettingsRow & { updated_at: string }): void {
@@ -506,6 +508,7 @@ export function updateSessionSettings(sessionId: string, settings: SessionSettin
     UPDATE sessions
     SET name = @name, court_count = @court_count, court_name = @court_name,
         session_type = @session_type, game_mode = @game_mode, matching_mode = @matching_mode,
+        session_duration_hours = @session_duration_hours,
         updated_at = @updated_at
     WHERE id = @id
   `).run({ id: sessionId, ...settings });
@@ -514,7 +517,7 @@ export function updateSessionSettings(sessionId: string, settings: SessionSettin
 export function getSessionSettings(sessionId: string): SessionSettingsRow | undefined {
   const db = getDb();
   const row = db.prepare(
-    'SELECT name, court_count, court_name, session_type, game_mode, matching_mode FROM sessions WHERE id = ?'
+    'SELECT name, court_count, court_name, session_type, game_mode, matching_mode, session_duration_hours FROM sessions WHERE id = ?'
   ).get(sessionId) as SessionSettingsRow | undefined;
   return row;
 }

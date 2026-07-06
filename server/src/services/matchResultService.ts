@@ -246,12 +246,15 @@ export function getSessionMatchResults(sessionId: string): MatchResult[] {
 
 /**
  * Computes PlayerStats[] for all players in a session.
- * Includes win rate, streak, and star rating for each player.
+ * Includes win rate, streak, point differential, and star rating for each player.
  */
 export function getPlayerStats(sessionId: string): PlayerStats[] {
   const players = getPlayersBySession(sessionId);
   const ratingRows = getPlayerRatingsBySession(sessionId);
   const ratingMap = new Map(ratingRows.map((r) => [r.player_id, r]));
+
+  // Pre-compute point differentials from match results with scores
+  const pointDiffMap = computePointDifferentials(sessionId);
 
   return players.map((player) => {
     const ratingRow = ratingMap.get(player.id);
@@ -262,6 +265,7 @@ export function getPlayerStats(sessionId: string): PlayerStats[] {
     const starRating = ratingRow?.star_rating ?? 3;
     const winRate = calculateWinRate(wins, losses);
     const streak = calculateStreak(sessionId, player.id);
+    const pointDifferential = pointDiffMap.get(player.id) ?? 0;
 
     return {
       playerId: player.id,
@@ -273,8 +277,37 @@ export function getPlayerStats(sessionId: string): PlayerStats[] {
       matchesPlayed,
       winRate,
       streak,
+      pointDifferential,
     };
   });
+}
+
+/**
+ * Computes point differential for each player in a session.
+ * For each match with scores, the winning team's players get +margin
+ * and the losing team's players get -margin.
+ * Matches without scores are ignored.
+ */
+function computePointDifferentials(sessionId: string): Map<string, number> {
+  const resultRows = getMatchResultsBySession(sessionId);
+  const diffMap = new Map<string, number>();
+
+  for (const row of resultRows) {
+    if (row.team1_score === null || row.team2_score === null) continue;
+
+    const winnerIds: string[] = JSON.parse(row.winner_player_ids);
+    const loserIds: string[] = JSON.parse(row.loser_player_ids);
+    const margin = Math.abs(row.team1_score - row.team2_score);
+
+    for (const id of winnerIds) {
+      diffMap.set(id, (diffMap.get(id) ?? 0) + margin);
+    }
+    for (const id of loserIds) {
+      diffMap.set(id, (diffMap.get(id) ?? 0) - margin);
+    }
+  }
+
+  return diffMap;
 }
 
 // ============================================================

@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   session_type TEXT NOT NULL DEFAULT 'open_play',
   game_mode TEXT NOT NULL DEFAULT 'doubles',
   matching_mode TEXT NOT NULL DEFAULT 'smart',
+  session_duration_hours REAL NOT NULL DEFAULT 4,
   live_view_url TEXT NOT NULL UNIQUE,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -158,6 +159,13 @@ export function getDb(): Database.Database {
   const hasPairId = queueColumnsInfo.some((col) => col.name === 'pair_id');
   if (!hasPairId) {
     db.exec('ALTER TABLE queue_entries ADD COLUMN pair_id TEXT REFERENCES fixed_pairs(id)');
+  }
+
+  // Migration: Add session_duration_hours column to sessions if it doesn't exist
+  const sessionColumnsInfo = db.pragma('table_info(sessions)') as Array<{ name: string }>;
+  const hasDurationHours = sessionColumnsInfo.some((col) => col.name === 'session_duration_hours');
+  if (!hasDurationHours) {
+    db.exec('ALTER TABLE sessions ADD COLUMN session_duration_hours REAL NOT NULL DEFAULT 4');
   }
 
   return db;

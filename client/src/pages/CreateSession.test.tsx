@@ -265,6 +265,7 @@ describe('CreateSession - Single-Page Flow', () => {
           sessionType: 'open_play',
           gameMode: 'doubles',
           matchingMode: 'smart',
+          sessionDurationHours: 4,
         });
       });
     });

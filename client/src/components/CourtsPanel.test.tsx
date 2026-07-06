@@ -40,6 +40,7 @@ function createPlayerStats(playerId: string, playerName: string, rating: number)
     matchesPlayed: 3,
     winRate: 66.7,
     streak: 1,
+    pointDifferential: 0,
   };
 }
 

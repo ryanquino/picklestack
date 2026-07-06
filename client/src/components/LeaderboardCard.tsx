@@ -16,15 +16,30 @@ export function buildLeaderboardCardEntries(
   playerStats: PlayerStats[],
   startingRatings?: Map<string, number>
 ): LeaderboardCardEntry[] {
-  return playerStats
+  const sorted = playerStats
     .filter(p => p.matchesPlayed >= 1)
     .sort((a, b) => {
       if (b.winRate !== a.winRate) return b.winRate - a.winRate;
       if (b.matchesPlayed !== a.matchesPlayed) return b.matchesPlayed - a.matchesPlayed;
-      return a.playerName.localeCompare(b.playerName);
-    })
-    .map((p, index) => ({
-      rank: index + 1,
+      return b.pointDifferential - a.pointDifferential;
+    });
+
+  // Dense ranking: tied players share the same rank, next rank increments by 1
+  let currentRank = 1;
+  return sorted.map((p, index) => {
+    if (index > 0) {
+      const prev = sorted[index - 1];
+      const isTied =
+        p.winRate === prev.winRate &&
+        p.matchesPlayed === prev.matchesPlayed &&
+        p.pointDifferential === prev.pointDifferential;
+      if (!isTied) {
+        currentRank = currentRank + 1;
+      }
+    }
+
+    return {
+      rank: currentRank,
       playerName: p.playerName,
       ratingDelta: p.rating - (startingRatings?.get(p.playerId) ?? p.rating),
       wins: p.wins,
@@ -32,7 +47,8 @@ export function buildLeaderboardCardEntries(
       matchesPlayed: p.matchesPlayed,
       winRate: p.winRate,
       rating: p.rating,
-    }));
+    };
+  });
 }
 
 interface LeaderboardCardProps {

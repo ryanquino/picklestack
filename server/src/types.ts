@@ -71,6 +71,7 @@ export interface SessionSettings {
   sessionType: SessionType;
   gameMode: GameMode;
   matchingMode: MatchingMode;
+  sessionDurationHours: number;
 }
 
 /** Match result with optional scores */
@@ -147,6 +148,7 @@ export interface PlayerStats {
   matchesPlayed: number;
   winRate: number;       // 0-100 percentage, one decimal place
   streak: number;        // positive = win streak, negative = loss streak, 0 = none
+  pointDifferential: number; // total points scored minus total points allowed (only from scored matches)
 }
 
 /** Leaderboard entry for session summary */

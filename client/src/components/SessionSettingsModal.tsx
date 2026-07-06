@@ -20,6 +20,7 @@ interface ValidationErrors {
   name?: string;
   courtName?: string;
   courtCount?: string;
+  sessionDurationHours?: string;
 }
 
 function SessionSettingsModal({
@@ -32,6 +33,7 @@ function SessionSettingsModal({
   const [courtName, setCourtName] = useState('');
   const [sessionType, setSessionType] = useState<SessionType>('open_play');
   const [courtCount, setCourtCount] = useState(initialSettings.courtCount);
+  const [sessionDurationHours, setSessionDurationHours] = useState(4);
   const [gameMode, setGameMode] = useState<GameMode>('doubles');
   const [matchingMode, setMatchingMode] = useState<MatchingMode>('smart');
 
@@ -60,6 +62,10 @@ function SessionSettingsModal({
     const count = Number(courtCount);
     if (!Number.isInteger(count) || count < 1 || count > 12) {
       errs.courtCount = 'Court count must be between 1 and 12';
+    }
+    const duration = Number(sessionDurationHours);
+    if (isNaN(duration) || duration < 0.5 || duration > 12) {
+      errs.sessionDurationHours = 'Duration must be between 0.5 and 12 hours';
     }
     return errs;
   }
@@ -138,6 +144,7 @@ function SessionSettingsModal({
       sessionType,
       gameMode,
       matchingMode,
+      sessionDurationHours: Number(sessionDurationHours),
     };
 
     try {
@@ -345,6 +352,41 @@ function SessionSettingsModal({
             {errors.courtCount && (
               <p id="settings-court-count-error" role="alert" style={{ color: '#dc2626', margin: '0.25rem 0 0', fontSize: '0.8rem' }}>
                 {errors.courtCount}
+              </p>
+            )}
+          </div>
+
+          {/* Session Duration */}
+          <div style={{ marginBottom: '1rem' }}>
+            <label
+              htmlFor="settings-session-duration"
+              style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500, fontSize: '0.9rem', color: '#374151' }}
+            >
+              Session Duration (hours)
+            </label>
+            <input
+              id="settings-session-duration"
+              type="number"
+              min={0.5}
+              max={12}
+              step={0.5}
+              value={sessionDurationHours}
+              onChange={(e) => { setSessionDurationHours(Number(e.target.value)); setErrors((prev) => ({ ...prev, sessionDurationHours: undefined })); }}
+              disabled={submitting}
+              aria-invalid={!!errors.sessionDurationHours}
+              aria-describedby={errors.sessionDurationHours ? 'settings-duration-error' : undefined}
+              style={{
+                width: '100%',
+                padding: '0.5rem',
+                border: errors.sessionDurationHours ? '1px solid #dc2626' : '1px solid #d1d5db',
+                borderRadius: '6px',
+                fontSize: '0.95rem',
+                boxSizing: 'border-box',
+              }}
+            />
+            {errors.sessionDurationHours && (
+              <p id="settings-duration-error" role="alert" style={{ color: '#dc2626', margin: '0.25rem 0 0', fontSize: '0.8rem' }}>
+                {errors.sessionDurationHours}
               </p>
             )}
           </div>

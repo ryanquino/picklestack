@@ -17,6 +17,7 @@ import {
   getMatchResultsBySession,
   getFixedPairById,
   getFixedPairByPlayerId,
+  getPlayerRatingsBySession,
   MatchRow,
   QueueEntryRow,
 } from '../repository';
@@ -285,6 +286,11 @@ function buildCandidatePool(
   gameMode: GameMode = 'doubles'
 ): PairingCandidate[] {
   const ratings = getSessionRatings(sessionId);
+  const ratingRows = getPlayerRatingsBySession(sessionId);
+  const matchesPlayedMap = new Map<string, number>();
+  for (const row of ratingRows) {
+    matchesPlayedMap.set(row.player_id, row.matches_played);
+  }
 
   let maxPoolSize: number;
   if (gameMode === 'singles') {
@@ -314,6 +320,8 @@ function buildCandidatePool(
         const player1Rating = ratings.get(pair.player1_id) ?? 1000;
         const player2Rating = ratings.get(pair.player2_id) ?? 1000;
         const combinedRating = calculateCombinedRating(player1Rating, player2Rating);
+        const p1Matches = matchesPlayedMap.get(pair.player1_id) ?? 0;
+        const p2Matches = matchesPlayedMap.get(pair.player2_id) ?? 0;
         return {
           playerId: entry.player_id,
           rating: combinedRating,
@@ -321,6 +329,7 @@ function buildCandidatePool(
           isPair: true,
           pairId: entry.pair_id,
           pairedPlayerIds: [pair.player1_id, pair.player2_id],
+          matchesPlayed: Math.round((p1Matches + p2Matches) / 2),
         };
       }
     }
@@ -333,6 +342,7 @@ function buildCandidatePool(
       isPair: false,
       pairId: null,
       pairedPlayerIds: null,
+      matchesPlayed: matchesPlayedMap.get(entry.player_id) ?? 0,
     };
   });
 }
