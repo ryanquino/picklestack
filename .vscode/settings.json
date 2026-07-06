@@ -1,0 +1,12 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^cmd /c \"cd /d c:\\\\Projects\\\\picklestack-main && npm\\.cmd --prefix client run build\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cmd /c \"cd /d c:\\\\Projects\\\\picklestack-main\\\\server && npm run test --silent\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

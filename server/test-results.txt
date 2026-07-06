@@ -1,0 +1,12 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mC:/Projects/picklestack-main/server[39m
+
+ [32m✓[39m src/app.test.ts [2m([22m[2m93 tests[22m[2m)[22m[33m 5637[2mms[22m[39m
+   [33m[2m✓[22m[39m E2E: Achievement awarding across multiple matches[2m > [22mawards Hot Streak and Undefeated achievements after 5 consecutive wins [33m382[2mms[22m[39m
+   [33m[2m✓[22m[39m E2E: Achievement awarding across multiple matches[2m > [22mawards Iron Player after 5+ matches played [33m334[2mms[22m[39m
+ [31m❯[39m src/repository.test.ts [2m([22m[2m70 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 1934[2mms[22m[39m
+[31m   [31m×[31m Repository[2m > [22mSessions[2m > [22mshould create and retrieve a session[90m 91[2mms[22m[31m[39m
+[31m     → expected { id: 's1', …(12) } to deeply equal { id: 's1', …(11) }[39m
+ [32m✓[39m src/services/pairingService.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 1274[2mms[22m[39m
+ [32m✓[39m src/services/courtService.test.ts [2m([22m[2m50 tests[22m[2m)[22m[33m 1607[2mms[22m[39m
+ [32m✓[39m src/services/achievementsService.test.ts [2m([22m[2m19 tests[22m[2m)[22m[33m 721[2mms[22m[39m
