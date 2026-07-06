@@ -131,12 +131,17 @@ export function getDb(): Database.Database {
     return db;
   }
 
-  const dataDir = path.resolve(process.cwd(), 'data');
+  // Use /tmp for serverless/restricted environments, otherwise use data/ relative to cwd
+  const dataDir = process.env.DB_PATH
+    ? path.dirname(process.env.DB_PATH)
+    : path.resolve(process.cwd(), 'data');
+
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
 
-  const dbPath = path.join(dataDir, 'picklestack.db');
+  const dbPath = process.env.DB_PATH || path.join(dataDir, 'picklestack.db');
+  console.log(`[DB] Opening database at: ${dbPath}`);
   db = new Database(dbPath);
 
   // Enable WAL mode for better concurrent read performance
