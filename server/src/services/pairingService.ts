@@ -643,29 +643,63 @@ export function selectPairing(input: PairingInput): PairingResult {
   }
   // else: filtered stays as-is (all exceed matchup repetition)
 
-  // Step 7: Score by earliest queue position FIRST (ensures front-of-queue players get matched),
-  // then break ties by minimum skill gap (for balanced matches among equally-positioned candidates).
-  // This guarantees that the player who has waited longest is always included in the match,
-  // which naturally gives fair court time to fixed pairs and all other players.
+  // Step 7: Queue-position-first with fairness cap for ALL candidates.
+  // Force the front-of-queue candidate to be included UNLESS they have already played
+  // more than the pool average. This prevents ANY player from over-playing and keeps
+  // the match count distribution tight.
   const minQueuePos = Math.min(...filtered.map(c => c.earliestQueuePosition));
-  const bestByQueuePos = filtered.filter(c => c.earliestQueuePosition === minQueuePos);
 
-  // Among groups containing the earliest-queued player, pick the best skill gap
+  // Check if the front candidate is over-played
+  const frontCandidate = pool.find(c => c.queuePosition === minQueuePos);
+  const poolAvgMatches = pool.length > 0
+    ? pool.reduce((sum, c) => sum + (c.matchesPlayed ?? 0), 0) / pool.length
+    : 0;
+  const frontIsOverPlayed = frontCandidate &&
+    (frontCandidate.matchesPlayed ?? 0) > poolAvgMatches;
+
+  let bestByQueuePos: TeamCombination[];
+  if (frontIsOverPlayed) {
+    // Skip the over-played candidate — prefer groups with underplayed candidates
+    // Find the candidate in the pool with the fewest matches
+    const minMatchesInPool = Math.min(...pool.map(c => c.matchesPlayed ?? 0));
+    const underplayedIds = new Set(
+      pool.filter(c => (c.matchesPlayed ?? 0) === minMatchesInPool).map(c => c.playerId)
+    );
+
+    // Prefer combos containing underplayed candidates
+    const withUnderplayed = filtered.filter(c => {
+      const allIds = [...new Set([...c.team1, ...c.team2])];
+      return allIds.some(id => underplayedIds.has(id));
+    });
+
+    if (withUnderplayed.length > 0) {
+      bestByQueuePos = withUnderplayed;
+    } else {
+      // Fallback to skill-gap-first
+      const minSG = Math.min(...filtered.map(c => c.skillGap));
+      bestByQueuePos = filtered.filter(c => c.skillGap === minSG);
+    }
+  } else {
+    // Normal: force front-of-queue inclusion
+    bestByQueuePos = filtered.filter(c => c.earliestQueuePosition === minQueuePos);
+  }
+
+  // Among selected combos, pick the best skill gap
   const minSkillGap = Math.min(...bestByQueuePos.map(c => c.skillGap));
   const bestBySkillGap = bestByQueuePos.filter(c => c.skillGap === minSkillGap);
 
-  // Step 7b: Break ties by fewest prior encounters (prefer fresh matchups)
+  // Then break ties by fewest prior encounters (opponent variety)
   const minEncounters = Math.min(...bestBySkillGap.map(c => (c as any).encounterCount ?? 0));
   const bestByEncounters = bestBySkillGap.filter(c => ((c as any).encounterCount ?? 0) === minEncounters);
 
   // Step 7c: Break ties by highest diversity bonus (descending, higher is better)
   // Compute diversity bonus ONLY for the finalists (deferred from Step 3 for performance)
   let bestByDiversity: TeamCombination[];
-  if (pairingMode === 'queue' || !sessionId || bestByEncounters.length <= 1) {
-    bestByDiversity = bestByEncounters;
+  if (pairingMode === 'queue' || !sessionId || bestBySkillGap.length <= 1) {
+    bestByDiversity = bestBySkillGap;
   } else {
     // Compute diversity bonus for each finalist
-    for (const combo of bestByEncounters) {
+    for (const combo of bestBySkillGap) {
       const expandedPlayerIds: string[] = [];
       const allPlayerIds = [...new Set([...combo.team1, ...combo.team2])];
       for (const pid of allPlayerIds) {

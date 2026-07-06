@@ -619,6 +619,9 @@ export function completeMatch(sessionId: string, courtNumber: number, options?: 
 
   // 8. Append each non-removed player to the queue end in assignment order.
   //    Fixed_Pairs are re-inserted as a single pair slot (not as two individual entries).
+  //    After inserting a pair, an extra phantom position is consumed to slow their cycle rate.
+  //    This accounts for pairs consuming 2 of 4 match slots — without this, pairs cycle
+  //    through the queue at the same slot rate as individuals but get double the player-matches.
   const reinsertedPairIds = new Set<string>();
 
   for (const playerId of existingPlayerIds) {
@@ -638,7 +641,7 @@ export function completeMatch(sessionId: string, courtNumber: number, options?: 
         position: nextPosition,
         pair_id: fixedPair.id,
       });
-      nextPosition++;
+      nextPosition++; // pair takes 1 queue position like individuals
       reinsertedPairIds.add(fixedPair.id);
     } else {
       // Individual player — insert normally

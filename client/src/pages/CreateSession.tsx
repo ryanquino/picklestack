@@ -4,8 +4,14 @@ import type { PendingPlayer, SessionType, GameMode, MatchingMode, StarRating } f
 import { STAR_RATING_LABELS } from '../types';
 import { validateSessionForm, validatePlayerName } from './createSessionValidation';
 import type { ValidationErrors } from './createSessionValidation';
-import { createSession, updateSessionSettings, addPlayer } from '../api';
+import { createSession, updateSessionSettings, addPlayer, createFixedPair } from '../api';
 import Navbar from '../components/Navbar';
+
+interface PendingPair {
+  id: string;
+  player1LocalId: string;
+  player2LocalId: string;
+}
 
 function CreateSession() {
   const navigate = useNavigate();
@@ -25,6 +31,10 @@ function CreateSession() {
   const [pendingPlayers, setPendingPlayers] = useState<PendingPlayer[]>([]);
   const [playerNameInput, setPlayerNameInput] = useState('');
   const [playerStarRatingInput, setPlayerStarRatingInput] = useState<StarRating>(3);
+
+  // Pairing
+  const [pendingPairs, setPendingPairs] = useState<PendingPair[]>([]);
+  const [pairSelection, setPairSelection] = useState<string[]>([]); // localIds of selected players for pairing
 
   // UI State
   const [submitting, setSubmitting] = useState(false);
@@ -53,6 +63,43 @@ function CreateSession() {
 
   function handleRemovePlayer(localId: string) {
     setPendingPlayers((prev) => prev.filter((p) => p.localId !== localId));
+    // Also remove any pairs involving this player
+    setPendingPairs((prev) => prev.filter((p) => p.player1LocalId !== localId && p.player2LocalId !== localId));
+    // Remove from pair selection if selected
+    setPairSelection((prev) => prev.filter((id) => id !== localId));
+  }
+
+  function handleTogglePairSelection(localId: string) {
+    setPairSelection((prev) => {
+      if (prev.includes(localId)) {
+        return prev.filter((id) => id !== localId);
+      }
+      if (prev.length >= 2) {
+        // Replace the first selection
+        return [prev[1], localId];
+      }
+      return [...prev, localId];
+    });
+  }
+
+  function handleCreatePair() {
+    if (pairSelection.length !== 2) return;
+    const [p1, p2] = pairSelection;
+    const newPair: PendingPair = {
+      id: crypto.randomUUID(),
+      player1LocalId: p1,
+      player2LocalId: p2,
+    };
+    setPendingPairs((prev) => [...prev, newPair]);
+    setPairSelection([]);
+  }
+
+  function handleRemovePair(pairId: string) {
+    setPendingPairs((prev) => prev.filter((p) => p.id !== pairId));
+  }
+
+  function isPlayerPaired(localId: string): boolean {
+    return pendingPairs.some((p) => p.player1LocalId === localId || p.player2LocalId === localId);
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -82,15 +129,30 @@ function CreateSession() {
 
       // 3. Check in all pending players (collect failures, don't abort)
       const failures: string[] = [];
+      const localIdToServerId = new Map<string, string>();
       for (const player of pendingPlayers) {
         try {
-          await addPlayer(session.id, player.name, player.starRating);
+          const created = await addPlayer(session.id, player.name, player.starRating);
+          localIdToServerId.set(player.localId, created.id);
         } catch {
           failures.push(player.name);
         }
       }
 
-      // 4. Navigate to dashboard
+      // 4. Create fixed pairs for successfully checked-in players
+      for (const pair of pendingPairs) {
+        const p1Id = localIdToServerId.get(pair.player1LocalId);
+        const p2Id = localIdToServerId.get(pair.player2LocalId);
+        if (p1Id && p2Id) {
+          try {
+            await createFixedPair(session.id, p1Id, p2Id);
+          } catch {
+            // Pair creation failed — not critical, continue
+          }
+        }
+      }
+
+      // 5. Navigate to dashboard
       navigate(`/session/${session.id}`, {
         state: failures.length > 0 ? { checkInWarnings: failures } : undefined,
       });
@@ -325,7 +387,20 @@ function CreateSession() {
             <ul className="create-session__player-list" aria-label="Pending players">
               {pendingPlayers.map((player) => (
                 <li key={player.localId} className="create-session__player-item">
-                  <span className="create-session__player-name">{player.name}</span>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, cursor: 'pointer' }}>
+                    {gameMode === 'doubles' && !isPlayerPaired(player.localId) && (
+                      <input
+                        type="checkbox"
+                        checked={pairSelection.includes(player.localId)}
+                        onChange={() => handleTogglePairSelection(player.localId)}
+                        aria-label={`Select ${player.name} for pairing`}
+                      />
+                    )}
+                    {isPlayerPaired(player.localId) && (
+                      <span style={{ fontSize: '0.8rem', color: '#7c3aed' }} aria-label="Paired">🔗</span>
+                    )}
+                    <span className="create-session__player-name">{player.name}</span>
+                  </label>
                   <span className="create-session__player-stars" aria-label={`${player.starRating} star rating`}>
                     {renderStars(player.starRating)}
                   </span>
@@ -340,6 +415,49 @@ function CreateSession() {
                 </li>
               ))}
             </ul>
+          )}
+
+          {/* Pair selected players button */}
+          {gameMode === 'doubles' && pairSelection.length === 2 && (
+            <button
+              type="button"
+              onClick={handleCreatePair}
+              className="create-session__add-btn"
+              style={{ marginTop: '0.5rem' }}
+              aria-label="Pair selected players"
+            >
+              🔗 Pair Selected Players
+            </button>
+          )}
+
+          {/* Pending pairs list */}
+          {pendingPairs.length > 0 && (
+            <div style={{ marginTop: '1rem' }}>
+              <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.9rem', color: '#374151' }}>
+                Fixed Pairs ({pendingPairs.length})
+              </h4>
+              <ul className="create-session__player-list" aria-label="Pending pairs">
+                {pendingPairs.map((pair) => {
+                  const p1 = pendingPlayers.find((p) => p.localId === pair.player1LocalId);
+                  const p2 = pendingPlayers.find((p) => p.localId === pair.player2LocalId);
+                  return (
+                    <li key={pair.id} className="create-session__player-item">
+                      <span style={{ flex: 1 }}>
+                        🔗 {p1?.name ?? '?'} &amp; {p2?.name ?? '?'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePair(pair.id)}
+                        className="create-session__remove-btn"
+                        aria-label={`Remove pair ${p1?.name} and ${p2?.name}`}
+                      >
+                        ✕
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           )}
         </div>
 
