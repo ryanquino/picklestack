@@ -86,10 +86,9 @@ function PlayerStatsDisplay({ stats, isMvp, achievements, variant }: PlayerStats
           fontSize: '0.8rem',
           color: '#4b5563',
         }}
-        aria-label={`Stats for ${stats.playerName}: ${stats.wins} wins, ${stats.losses} losses, ${stats.winRate}% win rate, rating ${stats.rating}`}
+        aria-label={`Stats for ${stats.playerName}: ${stats.wins} wins, ${stats.losses} losses, ${stats.winRate}% win rate`}
       >
         <StarRatingDisplay starRating={stats.starRating} />
-        <span style={{ fontWeight: 500 }}>{stats.rating}</span>
         <span>
           {stats.wins}W-{stats.losses}L
         </span>
@@ -128,11 +127,10 @@ function PlayerStatsDisplay({ stats, isMvp, achievements, variant }: PlayerStats
         background: '#f9fafb',
         border: '1px solid #e5e7eb',
       }}
-      aria-label={`Stats for ${stats.playerName}: ${stats.wins} wins, ${stats.losses} losses, ${stats.winRate}% win rate, rating ${stats.rating}`}
+      aria-label={`Stats for ${stats.playerName}: ${stats.wins} wins, ${stats.losses} losses, ${stats.winRate}% win rate`}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
         <StarRatingDisplay starRating={stats.starRating} />
-        <span style={{ fontWeight: 600 }}>Rating: {stats.rating}</span>
         {isMvp && (
           <span
             aria-label="MVP"

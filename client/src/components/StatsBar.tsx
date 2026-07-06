@@ -35,11 +35,6 @@ function StatsBar({
         <span>Avg Win</span>
       </div>
       <div className="stats-bar__item">
-        <span className="stats-bar__icon" role="img" aria-label="Rating">⭐</span>
-        <span className="stats-bar__value">{averageRating.toFixed(1)}</span>
-        <span>Avg Rating</span>
-      </div>
-      <div className="stats-bar__item">
         <span className="stats-bar__icon" role="img" aria-label="Pairing mode">🔀</span>
         <span className="stats-bar__value">{pairingMode}</span>
         <span>Mode</span>

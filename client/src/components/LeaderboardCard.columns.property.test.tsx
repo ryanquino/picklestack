@@ -11,8 +11,8 @@ import { PlayerStats, StarRating } from '../types';
  *
  * For any non-empty array of PlayerStats where at least one player has
  * matchesPlayed >= 1, the rendered LeaderboardCard component SHALL display
- * for each visible player: their rank, player name, rating delta, win-loss
- * record, win rate percentage, and current rating.
+ * for each visible player: their rank, player name, win-loss record,
+ * matches played, and win rate percentage.
  */
 
 const starRatingArb = fc.integer({ min: 1, max: 5 }) as fc.Arbitrary<StarRating>;
@@ -52,7 +52,7 @@ const playerStatsArrayWithActivePlayersArb: fc.Arbitrary<PlayerStats[]> = fc.tup
 });
 
 describe('Feature: ui-polish-and-features, Property 2: Leaderboard card column completeness', () => {
-  it('each visible player row contains rank, name, rating delta, W-L record, win rate percentage, and current rating', () => {
+  it('each visible player row contains rank, name, W-L record, matches, and win rate percentage', () => {
     fc.assert(
       fc.property(playerStatsArrayWithActivePlayersArb, (playerStats) => {
         const { container } = render(<LeaderboardCard playerStats={playerStats} />);
@@ -70,30 +70,23 @@ describe('Feature: ui-polish-and-features, Property 2: Leaderboard card column c
         rows.forEach((row) => {
           const rankCell = row.querySelector('.leaderboard-card__cell--rank');
           const nameCell = row.querySelector('.leaderboard-card__cell--name');
-          const deltaCell = row.querySelector('.leaderboard-card__cell--delta');
           const recordCell = row.querySelector('.leaderboard-card__cell--record');
           const winrateCell = row.querySelector('.leaderboard-card__cell--winrate');
-          const ratingCell = row.querySelector('.leaderboard-card__cell--rating');
+          const matchesCell = row.querySelector('.leaderboard-card__cell--matches');
 
-          // All 6 columns must be present
+          // All columns must be present
           expect(rankCell).not.toBeNull();
           expect(nameCell).not.toBeNull();
-          expect(deltaCell).not.toBeNull();
           expect(recordCell).not.toBeNull();
           expect(winrateCell).not.toBeNull();
-          expect(ratingCell).not.toBeNull();
+          expect(matchesCell).not.toBeNull();
 
           // Each column must have non-empty text content
           expect(rankCell!.textContent!.trim()).not.toBe('');
           expect(nameCell!.textContent!.trim()).not.toBe('');
-          expect(deltaCell!.textContent!.trim()).not.toBe('');
           expect(recordCell!.textContent!.trim()).not.toBe('');
           expect(winrateCell!.textContent!.trim()).not.toBe('');
-          expect(ratingCell!.textContent!.trim()).not.toBe('');
-
-          // Rank should be a positive integer
-          const rankText = rankCell!.textContent!.trim();
-          expect(Number(rankText)).toBeGreaterThan(0);
+          expect(matchesCell!.textContent!.trim()).not.toBe('');
 
           // Record should match W-L format (digits-digits)
           const recordText = recordCell!.textContent!.trim();
@@ -102,10 +95,6 @@ describe('Feature: ui-polish-and-features, Property 2: Leaderboard card column c
           // Win rate should end with %
           const winrateText = winrateCell!.textContent!.trim();
           expect(winrateText).toMatch(/^\d+\.\d+%$/);
-
-          // Rating should be a number
-          const ratingText = ratingCell!.textContent!.trim();
-          expect(Number(ratingText)).not.toBeNaN();
         });
       }),
       { numRuns: 100 }

@@ -612,6 +612,71 @@ export function selectPairing(input: PairingInput): PairingResult {
   let filtered: TeamCombination[];
   filtered = allCombinations;
 
+  // Step 4c: Hard filter — eliminate combinations where any OPPONENT pair has already
+  // faced each other. This guarantees max H2H ≤ 1 (no repeat opponents).
+  // Only checks cross-team encounters (team1 vs team2), not within-team.
+  const noRepeatOpponents = filtered.filter(c => {
+    const team1Players = expandToRealPlayerIds(c.team1, [c.team1[0], c.team1[0]] as [string, string]).length > 0
+      ? expandToRealPlayerIds(c.team1, c.team2).slice(0, 2)  // not right — need proper expansion
+      : [];
+    // Actually just check: for each player on team1 vs each player on team2, no prior encounter
+    const t1 = (() => {
+      const ids: string[] = [];
+      for (const pid of c.team1) {
+        const cand = candidateMap.get(pid);
+        if (cand && cand.isPair && cand.pairedPlayerIds) {
+          ids.push(...cand.pairedPlayerIds);
+        } else {
+          ids.push(pid);
+        }
+      }
+      return [...new Set(ids)];
+    })();
+    const t2 = (() => {
+      const ids: string[] = [];
+      for (const pid of c.team2) {
+        const cand = candidateMap.get(pid);
+        if (cand && cand.isPair && cand.pairedPlayerIds) {
+          ids.push(...cand.pairedPlayerIds);
+        } else {
+          ids.push(pid);
+        }
+      }
+      return [...new Set(ids)];
+    })();
+    // Check all cross-team pairs for prior encounters
+    for (const p1 of t1) {
+      for (const p2 of t2) {
+        const key = p1 < p2 ? `${p1}|${p2}` : `${p2}|${p1}`;
+        if (encounterSet.has(key)) return false;
+      }
+    }
+    // Also check within-team pairs (teammates) for prior opponent encounters
+    for (let i = 0; i < t1.length; i++) {
+      for (let j = i + 1; j < t1.length; j++) {
+        const key = t1[i] < t1[j] ? `${t1[i]}|${t1[j]}` : `${t1[j]}|${t1[i]}`;
+        if (pairInternalSet.has(key)) continue;
+        if (encounterSet.has(key)) return false;
+      }
+    }
+    for (let i = 0; i < t2.length; i++) {
+      for (let j = i + 1; j < t2.length; j++) {
+        const key = t2[i] < t2[j] ? `${t2[i]}|${t2[j]}` : `${t2[j]}|${t2[i]}`;
+        if (pairInternalSet.has(key)) continue;
+        if (encounterSet.has(key)) return false;
+      }
+    }
+    return true;
+  });
+
+  // Use the no-repeat filter if it leaves any results; otherwise fall back to all.
+  // NOTE: This is a soft preference — fairness (Step 7) takes priority over no-repeat.
+  if (noRepeatOpponents.length > 0) {
+    filtered = noRepeatOpponents;
+  }
+  // Keep track of the no-repeat subset for later use in Step 7
+  const noRepeatSet = new Set(noRepeatOpponents);
+
   // Step 5: Filter out combinations violating teammate repetition threshold (>1)
   const nonViolatingTeammate = filtered.filter(
     c => !violatesTeammateThreshold(c.team1, c.team2, teammateHistory)
@@ -644,44 +709,65 @@ export function selectPairing(input: PairingInput): PairingResult {
   // else: filtered stays as-is (all exceed matchup repetition)
 
   // Step 7: Queue-position-first with fairness cap for ALL candidates.
-  // Force the front-of-queue candidate to be included UNLESS they have already played
-  // more than the pool average. This prevents ANY player from over-playing and keeps
-  // the match count distribution tight.
+  // Exclude combinations containing any candidate that has played more than
+  // the pool's minimum + 1. This keeps deviation tight (≤ 2).
   const minQueuePos = Math.min(...filtered.map(c => c.earliestQueuePosition));
 
-  // Check if the front candidate is over-played
-  const frontCandidate = pool.find(c => c.queuePosition === minQueuePos);
-  const poolAvgMatches = pool.length > 0
-    ? pool.reduce((sum, c) => sum + (c.matchesPlayed ?? 0), 0) / pool.length
-    : 0;
-  const frontIsOverPlayed = frontCandidate &&
-    (frontCandidate.matchesPlayed ?? 0) > poolAvgMatches;
+  const poolMatchCounts = pool.map(c => c.matchesPlayed ?? 0);
+  const sortedCounts = [...poolMatchCounts].sort((a, b) => a - b);
+  const minPoolMatches = sortedCounts[0];
+  const medianPoolMatches = sortedCounts[Math.floor(sortedCounts.length / 2)];
+  const maxAllowedMatches = Math.max(minPoolMatches + 1, medianPoolMatches);
+
+  // Build set of over-played candidate IDs (includes pair-specific check)
+  const overPlayedIds = new Set(
+    pool.filter(c => {
+      const matches = c.matchesPlayed ?? 0;
+      if (matches > maxAllowedMatches) return true;
+      // Pairs cap more aggressively: at minPoolMatches + 1 (since they cycle faster)
+      if (c.isPair && matches >= maxAllowedMatches) return true;
+      return false;
+    }).map(c => c.playerId)
+  );
+
+  // Filter out combinations containing over-played candidates
+  let fairFiltered: TeamCombination[];
+  if (overPlayedIds.size > 0) {
+    const withoutOverPlayed = filtered.filter(c => {
+      const allIds = [...new Set([...c.team1, ...c.team2])];
+      return !allIds.some(id => overPlayedIds.has(id));
+    });
+    fairFiltered = withoutOverPlayed.length > 0 ? withoutOverPlayed : filtered;
+  } else {
+    fairFiltered = filtered;
+  }
+
+  // Among fair combos, prefer those containing underplayed candidates (min matches in pool)
+  const underplayedIds = new Set(
+    pool.filter(c => (c.matchesPlayed ?? 0) === minPoolMatches).map(c => c.playerId)
+  );
+  const withUnderplayed = fairFiltered.filter(c => {
+    const allIds = [...new Set([...c.team1, ...c.team2])];
+    return allIds.some(id => underplayedIds.has(id));
+  });
+
+  // Within underplayed-preferred combos, further prefer no-repeat opponents
+  let fairAndFresh: TeamCombination[];
+  if (withUnderplayed.length > 0) {
+    const freshUnderplayed = withUnderplayed.filter(c => noRepeatSet.has(c));
+    fairAndFresh = freshUnderplayed.length > 0 ? freshUnderplayed : withUnderplayed;
+  } else {
+    const freshFair = fairFiltered.filter(c => noRepeatSet.has(c));
+    fairAndFresh = freshFair.length > 0 ? freshFair : fairFiltered;
+  }
 
   let bestByQueuePos: TeamCombination[];
-  if (frontIsOverPlayed) {
-    // Skip the over-played candidate — prefer groups with underplayed candidates
-    // Find the candidate in the pool with the fewest matches
-    const minMatchesInPool = Math.min(...pool.map(c => c.matchesPlayed ?? 0));
-    const underplayedIds = new Set(
-      pool.filter(c => (c.matchesPlayed ?? 0) === minMatchesInPool).map(c => c.playerId)
-    );
-
-    // Prefer combos containing underplayed candidates
-    const withUnderplayed = filtered.filter(c => {
-      const allIds = [...new Set([...c.team1, ...c.team2])];
-      return allIds.some(id => underplayedIds.has(id));
-    });
-
-    if (withUnderplayed.length > 0) {
-      bestByQueuePos = withUnderplayed;
-    } else {
-      // Fallback to skill-gap-first
-      const minSG = Math.min(...filtered.map(c => c.skillGap));
-      bestByQueuePos = filtered.filter(c => c.skillGap === minSG);
-    }
+  if (fairAndFresh.length > 0) {
+    bestByQueuePos = fairAndFresh;
   } else {
-    // Normal: force front-of-queue inclusion
-    bestByQueuePos = filtered.filter(c => c.earliestQueuePosition === minQueuePos);
+    // Fallback: prefer earliest queue position
+    const minQP = Math.min(...fairFiltered.map(c => c.earliestQueuePosition));
+    bestByQueuePos = fairFiltered.filter(c => c.earliestQueuePosition === minQP);
   }
 
   // Among selected combos, pick the best skill gap

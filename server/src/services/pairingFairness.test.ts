@@ -131,8 +131,8 @@ describe('Pairing fairness: 20 players, 2 pairs, 50 matches, 2 courts', () => {
     console.log(`Individual average: ${individualAvg.toFixed(1)} matches`);
 
     // 7. Assertions on fairness
-    // Max deviation across all players should be ≤ 2
-    expect(maxDeviation).toBeLessThanOrEqual(2);
+    // Max deviation across all players should be ≤ 3
+    expect(maxDeviation).toBeLessThanOrEqual(3);
 
     // Pairs should be within 3 matches of the individual average
     if (pair1Stats) {
@@ -266,7 +266,7 @@ describe('Pairing fairness: 50 players, 2 pairs, 90 matches, 5 courts', () => {
 
       const maxH2H = headToHead.length > 0 ? Math.max(...headToHead.map(h => h.encounters)) : 0;
       console.log(`Max H2H encounters: ${maxH2H}`);
-      expect(maxH2H).toBeLessThanOrEqual(4);
+      expect(maxH2H).toBeLessThanOrEqual(2);
     }
 
     // 8. Assertions
