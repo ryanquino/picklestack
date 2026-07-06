@@ -225,8 +225,9 @@ export function updateSessionSettings(sessionId: string, settings: SessionSettin
 
   const validationResult = validateSessionSettings(settings);
   if (!validationResult.valid) {
-    const errorMessages = Object.values(validationResult.errors);
-    const errorFields = Object.keys(validationResult.errors);
+    const result = validationResult as { valid: false; errors: Record<string, string> };
+    const errorMessages = Object.values(result.errors);
+    const errorFields = Object.keys(result.errors);
     throw new ValidationError(errorMessages.join('; '), errorFields);
   }
 
