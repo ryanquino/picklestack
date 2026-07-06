@@ -623,8 +623,8 @@ function OrganizerDashboard() {
             )}
           </section>
 
-          {/* Session Quality Card */}
-          <section className="organizer-dashboard__quality-card card" style={{ padding: 'var(--space-lg)' }} aria-label="Session Quality">
+          {/* Session Quality Card — hidden for now */}
+          {/* <section className="organizer-dashboard__quality-card card" style={{ padding: 'var(--space-lg)' }} aria-label="Session Quality">
             <h3>Session Quality</h3>
             {!state.qualityMetrics || state.qualityMetrics.sessionQualityScore == null ? (
               <p className="text-secondary">N/A</p>
@@ -659,7 +659,7 @@ function OrganizerDashboard() {
                 )}
               </>
             )}
-          </section>
+          </section> */}
 
           {/* Leaderboard Card at the bottom */}
           {(state.playerStats ?? []).length > 0 && (

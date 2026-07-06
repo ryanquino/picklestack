@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Achievement, AchievementKind } from '../types';
 
 /** Map achievement kinds to their display icons */
@@ -62,6 +63,12 @@ function AchievementNotification({
 }: AchievementNotificationProps) {
   const icon = ACHIEVEMENT_ICONS[achievement.kind];
   const name = ACHIEVEMENT_NAMES[achievement.kind];
+
+  // Auto-dismiss after 10 seconds
+  useEffect(() => {
+    const timer = setTimeout(onDismiss, 10000);
+    return () => clearTimeout(timer);
+  }, [onDismiss]);
 
   return (
     <div

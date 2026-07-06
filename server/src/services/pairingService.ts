@@ -643,53 +643,20 @@ export function selectPairing(input: PairingInput): PairingResult {
   }
   // else: filtered stays as-is (all exceed matchup repetition)
 
-  // Step 7: Score by fairness + skill gap combined.
-  // Prefer groups containing candidates with fewer matches played, but allow
-  // a small skill-gap advantage to override when the disparity is only 1 game.
-  // This prevents late joiners from monopolizing courts in series while still
-  // ensuring significantly underplayed players get priority.
-  const getGroupMinMatchesPlayed = (combo: TeamCombination): number => {
-    const allIds = [...new Set([...combo.team1, ...combo.team2])];
-    let minMatches = Infinity;
-    for (const id of allIds) {
-      const candidate = candidateMap.get(id);
-      if (candidate) {
-        minMatches = Math.min(minMatches, candidate.matchesPlayed ?? 0);
-      }
-    }
-    return minMatches;
-  };
+  // Step 7: Score by earliest queue position FIRST (ensures front-of-queue players get matched),
+  // then break ties by minimum skill gap (for balanced matches among equally-positioned candidates).
+  // This guarantees that the player who has waited longest is always included in the match,
+  // which naturally gives fair court time to fixed pairs and all other players.
+  const minQueuePos = Math.min(...filtered.map(c => c.earliestQueuePosition));
+  const bestByQueuePos = filtered.filter(c => c.earliestQueuePosition === minQueuePos);
 
-  // Find the global minimum matches played across all filtered combos
-  const globalMinMatches = Math.min(...filtered.map(getGroupMinMatchesPlayed));
-
-  // Only apply fairness filtering when someone is 2+ matches behind the median.
-  // This prevents a late joiner from playing back-to-back-to-back while still
-  // ensuring significantly underplayed players (like pairs) get priority.
-  const allMinMatches = filtered.map(getGroupMinMatchesPlayed);
-  const medianMatches = allMinMatches.sort((a, b) => a - b)[Math.floor(allMinMatches.length / 2)] ?? 0;
-  const fairnessGap = medianMatches - globalMinMatches;
-
-  let fairnessFiltered: TeamCombination[];
-  if (fairnessGap >= 2) {
-    // Someone is significantly behind — prioritize groups that include them
-    fairnessFiltered = filtered.filter(c => getGroupMinMatchesPlayed(c) === globalMinMatches);
-  } else {
-    // Everyone is roughly even (within 1 game) — don't apply fairness filter
-    fairnessFiltered = filtered;
-  }
-
-  // Among fairness-filtered, score by minimum skill gap
-  const minSkillGap = Math.min(...fairnessFiltered.map(c => c.skillGap));
-  const bestBySkillGap = fairnessFiltered.filter(c => c.skillGap === minSkillGap);
-
-  // Step 7a: Break ties by earliest queue position (ensure top-of-queue players get matched)
-  const minQueuePos = Math.min(...bestBySkillGap.map(c => c.earliestQueuePosition));
-  const bestByQueuePos = bestBySkillGap.filter(c => c.earliestQueuePosition === minQueuePos);
+  // Among groups containing the earliest-queued player, pick the best skill gap
+  const minSkillGap = Math.min(...bestByQueuePos.map(c => c.skillGap));
+  const bestBySkillGap = bestByQueuePos.filter(c => c.skillGap === minSkillGap);
 
   // Step 7b: Break ties by fewest prior encounters (prefer fresh matchups)
-  const minEncounters = Math.min(...bestByQueuePos.map(c => (c as any).encounterCount ?? 0));
-  const bestByEncounters = bestByQueuePos.filter(c => ((c as any).encounterCount ?? 0) === minEncounters);
+  const minEncounters = Math.min(...bestBySkillGap.map(c => (c as any).encounterCount ?? 0));
+  const bestByEncounters = bestBySkillGap.filter(c => ((c as any).encounterCount ?? 0) === minEncounters);
 
   // Step 7c: Break ties by highest diversity bonus (descending, higher is better)
   // Compute diversity bonus ONLY for the finalists (deferred from Step 3 for performance)
