@@ -2259,7 +2259,7 @@ a:hover {
 
 @media (max-width: 767px) {
   .match-dialog__teams {
-    flex-direction: column;
+    flex-direction: row;
   }
 }
 
