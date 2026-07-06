@@ -29,7 +29,7 @@ function Leaderboard({ entries }: LeaderboardProps) {
             {entries.map(entry => (
               <tr key={entry.playerId} className="leaderboard-card__row">
                 <td className="leaderboard-card__cell leaderboard-card__cell--rank">
-                  {entry.rank === 1 ? '🏆' : entry.rank === 2 ? '🥇' : entry.rank === 3 ? '🥈' : entry.rank}
+                  {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : entry.rank}
                 </td>
                 <td className="leaderboard-card__cell leaderboard-card__cell--name">
                   {entry.playerName}

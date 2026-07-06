@@ -51,6 +51,26 @@ function getElapsedMinutes(startedAt: string): number {
   return Math.max(0, Math.floor((now - start) / 60000));
 }
 
+/** Live timer that updates every second, displays mm:ss */
+function LiveTimer({ startedAt }: { startedAt: string }) {
+  const [elapsed, setElapsed] = useState(() => {
+    const diff = Date.now() - new Date(startedAt).getTime();
+    return Math.max(0, Math.floor(diff / 1000));
+  });
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const diff = Date.now() - new Date(startedAt).getTime();
+      setElapsed(Math.max(0, Math.floor(diff / 1000)));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [startedAt]);
+
+  const minutes = Math.floor(elapsed / 60);
+  const seconds = elapsed % 60;
+  return <span>{minutes}:{seconds.toString().padStart(2, '0')}</span>;
+}
+
 /** Render star rating as filled star icons */
 function StarRating({ rating }: { rating: number }) {
   return (
@@ -345,7 +365,7 @@ function CourtCard({
           {/* Footer: match number + elapsed duration */}
           <div className="court-card__footer">
             <span>Match #{matchIndex !== null ? totalCompletedMatches + matchIndex + 1 : '—'}</span>
-            <span>{getElapsedMinutes(match.startedAt)}m</span>
+            <span><LiveTimer startedAt={match.startedAt} /></span>
           </div>
 
           {/* Complete Match button */}
