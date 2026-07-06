@@ -8,6 +8,25 @@ import PlayerProfileCard from '../components/PlayerProfileCard';
 import LiveSessionHeader from '../components/LiveSessionHeader';
 import Navbar from '../components/Navbar';
 
+/** Live timer that updates every second, displays mm:ss */
+function LiveTimer({ startedAt }: { startedAt: string }) {
+  const [elapsed, setElapsed] = useState(() => {
+    const diff = Date.now() - new Date(startedAt).getTime();
+    return Math.max(0, Math.floor(diff / 1000));
+  });
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const diff = Date.now() - new Date(startedAt).getTime();
+      setElapsed(Math.max(0, Math.floor(diff / 1000)));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [startedAt]);
+
+  const minutes = Math.floor(elapsed / 60);
+  const seconds = elapsed % 60;
+  return <span>⏱ {minutes}:{seconds.toString().padStart(2, '0')}</span>;
+}
 interface EnrichedQueueEntry {
   playerId: string;
   playerName: string;
@@ -415,7 +434,7 @@ function LiveView() {
                   </div>
                   <div className="court-card__footer">
                     <span>Match #{(totalCompletedMatches ?? 0) + activeMatches.findIndex(m => m.courtNumber === courtNumber) + 1}</span>
-                    <span>⏱ {Math.max(0, Math.floor((Date.now() - new Date(match.startedAt).getTime()) / 60000))}m</span>
+                    <span><LiveTimer startedAt={match.startedAt} /></span>
                   </div>
                 </div>
               );
