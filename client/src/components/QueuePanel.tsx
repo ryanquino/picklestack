@@ -2,7 +2,6 @@ import { useState } from 'react';
 import type { StarRating, GameMode, MatchingMode, Achievement } from '../types';
 import CheckInForm from './CheckInForm';
 import QueueList from './QueueList';
-import PairControls from './PairControls';
 
 interface EnrichedQueueEntry {
   playerId: string;
@@ -100,12 +99,15 @@ function QueuePanel({
         />
       </div>
 
-      {onPairChanged && (
-        <PairControls
-          sessionId={sessionId}
-          queue={queue}
-          onPairChanged={onPairChanged}
-        />
+      {onPairChanged && queue.some(e => e.isPairSlot) && (
+        <div className="pair-controls__pairs-compact">
+          <span className="pair-controls__section-title">Paired</span>
+          {queue.filter(e => e.isPairSlot && e.pairId).map((entry) => (
+            <span key={entry.pairId} className="pair-controls__pair-chip">
+              🔗 {entry.playerName} & {entry.partnerPlayerName}
+            </span>
+          ))}
+        </div>
       )}
     </div>
   );

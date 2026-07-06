@@ -1,4 +1,13 @@
+import { useState, useEffect } from 'react';
 import type { PairingMode } from '../types';
+
+function getTheme(): 'dark' | 'light' {
+  try {
+    const stored = localStorage.getItem('picklestack_theme');
+    if (stored === 'light' || stored === 'dark') return stored;
+  } catch { /* ignore */ }
+  return 'dark';
+}
 
 /**
  * Session header bar displayed at the top of the content area when a session is active.
@@ -28,6 +37,13 @@ function SessionHeader({
   onOpenSettings,
   onEndSession,
 }: SessionHeaderProps) {
+  const [theme, setTheme] = useState<'dark' | 'light'>(getTheme);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem('picklestack_theme', theme); } catch { /* ignore */ }
+  }, [theme]);
+
   return (
     <header className="session-header">
       <div className="session-header__info">
@@ -82,6 +98,16 @@ function SessionHeader({
         >
           <span className="session-header__btn-icon" aria-hidden="true">⚙️</span>
           <span className="session-header__btn-label">Settings</span>
+        </button>
+
+        <button
+          type="button"
+          className="navbar__theme-toggle"
+          onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+        >
+          {theme === 'dark' ? '☀️' : '🌙'}
         </button>
 
         <button

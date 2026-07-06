@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { getSessionLive } from '../api';
 import type { PlayerStats, Achievement, LeaderboardEntry, StarRating, GameMode, MatchingMode } from '../types';
 import Leaderboard from '../components/Leaderboard';
+import LeaderboardCard from '../components/LeaderboardCard';
 import PlayerProfileCard from '../components/PlayerProfileCard';
 import LiveSessionHeader from '../components/LiveSessionHeader';
 import Navbar from '../components/Navbar';
@@ -437,56 +438,49 @@ function LiveView() {
         </div>
       </section>
 
-      {/* On Deck queue — only show on-deck players */}
-      <section aria-label="On deck" className="live-view__queue">
+      {/* Queue — full list, clickable names show profile */}
+      <section aria-label="Queue" className="live-view__queue">
         <h2 className="live-view__queue-title">Up Next</h2>
-        {onDeckPlayers.length === 0 ? (
-          <p className="empty-state">No players on deck</p>
+        {queue.length === 0 ? (
+          <p className="empty-state">No players in queue</p>
         ) : (
-          <ol className="live-view__queue-list" aria-label="On deck players">
-            {onDeckPlayers.map((entry, idx) => {
+          <ul className="avatar-queue" aria-label="Queued players">
+            {queue.map((entry, idx) => {
               const waitMinutes = waitEstimates?.[entry.playerId] ?? null;
+              const playersPerMatch = gameMode === 'singles' ? 2 : 4;
+              const isNext = idx < playersPerMatch;
+              const isOnDeck = idx < onDeckCount;
+              const dotIcon = isNext ? '🟢' : isOnDeck ? '🟡' : '⚪';
+              const waitLabel = isNext ? 'Next' : isOnDeck ? 'On Deck' : (waitMinutes != null ? `${waitMinutes}m` : '');
+
               return (
               <li
                 key={entry.playerId}
-                className="live-view__queue-item live-view__queue-item--on-deck"
+                className={`avatar-queue__item${isNext ? ' avatar-queue__item--next' : isOnDeck ? ' avatar-queue__item--ondeck' : ''}`}
               >
-                <div className="live-view__queue-info">
-                  <div className="live-view__queue-name-row">
-                    <span className="live-view__queue-name">{entry.playerName}</span>
-                    {entry.streak >= 2 && (
-                      <span className="court-card__player-streak" aria-label={`${entry.streak} win streak`}>🔥</span>
-                    )}
-                    {entry.streak <= -2 && (
-                      <span className="court-card__player-streak" aria-label={`${Math.abs(entry.streak)} loss streak`}>❄️</span>
-                    )}
-                    {waitMinutes !== null && (
-                      <span className="live-view__queue-wait">
-                        {idx === 0 ? "You're up next!" : `You're up in ~${waitMinutes} min`}
-                      </span>
-                    )}
-                  </div>
-                  <div className="live-view__queue-details">
-                    <span className="live-view__queue-stars" aria-label={`${entry.starRating} star rating`}>
-                      {renderStars(entry.starRating)}
-                    </span>
-                    <span className="live-view__queue-winrate">{entry.winRate}%</span>
-                  </div>
+                <div className="avatar-queue__row" onClick={() => setSelectedPlayerId(entry.playerId)} style={{ cursor: 'pointer' }}>
+                  <span className="avatar-queue__dot" aria-hidden="true">{dotIcon}</span>
+                  <span className="avatar-queue__name">
+                    {entry.playerName}
+                    {entry.streak >= 2 && <span className="avatar-queue__streak">🔥</span>}
+                    {entry.streak <= -2 && <span className="avatar-queue__streak">❄️</span>}
+                  </span>
+                  <span className="avatar-queue__record">{entry.wins}-{entry.losses}</span>
+                  <span className={`avatar-queue__wait${isNext ? ' avatar-queue__wait--now' : isOnDeck ? ' avatar-queue__wait--ondeck' : ''}`}>
+                    {waitLabel}
+                  </span>
                 </div>
               </li>
               );
             })}
-          </ol>
+          </ul>
         )}
       </section>
 
       {/* Leaderboard at the bottom, scrollable */}
-      {leaderboardEntries.length > 0 && (
+      {playerStats.length > 0 && (
         <section aria-label="Session leaderboard" className="live-view__leaderboard">
-          <h2>Leaderboard</h2>
-          <div className="live-view__leaderboard-scroll">
-            <Leaderboard entries={leaderboardEntries} />
-          </div>
+          <LeaderboardCard playerStats={playerStats} />
         </section>
       )}
 

@@ -96,6 +96,7 @@ function StreakBadge({ streak }: { streak: number }) {
 
 function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'smart', diversity, waitEstimates, onMoveUp, onMoveDown, onRemove, onPlayerClick, onPairChanged }: QueueListProps) {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
   const [pairModalPlayerId, setPairModalPlayerId] = useState<string | null>(null);
   const onDeckSet = getOnDeckPlayerIds(queue, gameMode, matchingMode);
 
@@ -118,25 +119,35 @@ function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'sma
     }
   }
 
+  function getStatusDot(index: number, isOnDeck: boolean): string {
+    // First 4 = next match (green), rest of on-deck pool = yellow, waiting = gray
+    const playersPerMatch = gameMode === 'singles' ? 2 : 4;
+    if (index < playersPerMatch) return '🟢';
+    if (isOnDeck) return '🟡';
+    return '⚪';
+  }
+
+  function getWaitLabel(index: number, playerId: string, isOnDeck: boolean): string {
+    const playersPerMatch = gameMode === 'singles' ? 2 : 4;
+    if (index < playersPerMatch) return 'Next';
+    if (isOnDeck) return 'On Deck';
+    if (waitEstimates && waitEstimates[playerId] != null) {
+      return `${waitEstimates[playerId]}m`;
+    }
+    return '';
+  }
+
   return (
     <div>
       <h2>Queue</h2>
-      <ol start={0} className="queue-panel__list">
+      <ul className="avatar-queue">
         {queue.map((entry, index) => {
-          const starRating = (entry.starRating ?? 3) as number;
-          const rating = entry.rating ?? 1000;
-          const wins = entry.wins ?? 0;
-          const losses = entry.losses ?? 0;
-          const streak = entry.streak ?? 0;
           const isOnDeck = onDeckSet.has(entry.playerId);
           const isPair = entry.isPairSlot === true;
-
-          const itemClassName = [
-            'queue-item',
-            isOnDeck ? 'queue-item--on-deck' : '',
-            isPair ? 'queue-item--pair' : '',
-          ].filter(Boolean).join(' ');
-          const nameClassName = `queue-item__name${isOnDeck ? ' queue-item__name--on-deck' : ''}`;
+          const isExpanded = expandedPlayerId === entry.playerId;
+          const streak = entry.streak ?? 0;
+          const wins = entry.wins ?? 0;
+          const losses = entry.losses ?? 0;
 
           const displayName = isPair && entry.partnerPlayerName
             ? `${entry.playerName} & ${entry.partnerPlayerName}`
@@ -146,89 +157,65 @@ function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'sma
             ? `${entry.playerName} and ${entry.partnerPlayerName} (paired)`
             : entry.playerName;
 
+          const waitLabel = getWaitLabel(index, entry.playerId, isOnDeck);
+
+          const playersPerMatch = gameMode === 'singles' ? 2 : 4;
+          const isNextMatch = index < playersPerMatch;
+
           return (
             <li
               key={entry.playerId}
-              className={itemClassName}
+              className={`avatar-queue__item${isExpanded ? ' avatar-queue__item--expanded' : ''}${isNextMatch ? ' avatar-queue__item--next' : isOnDeck ? ' avatar-queue__item--ondeck' : ''}`}
             >
-              <span className="queue-position">{entry.position + 1}</span>
+              {/* Compact row */}
+              <div
+                className="avatar-queue__row"
+                onClick={() => setExpandedPlayerId(isExpanded ? null : entry.playerId)}
+              >
+                <span className="avatar-queue__dot" aria-hidden="true">{getStatusDot(index, isOnDeck)}</span>
+                <span className="avatar-queue__name">
+                  {isPair && <span className="avatar-queue__pair-icon">🔗</span>}
+                  {displayName}
+                  {streak >= 2 && <span className="avatar-queue__streak">🔥</span>}
+                  {streak <= -2 && <span className="avatar-queue__streak">❄️</span>}
+                </span>
+                <span className="avatar-queue__record">{wins}-{losses}</span>
+                <span className={`avatar-queue__wait${isNextMatch ? ' avatar-queue__wait--now' : isOnDeck ? ' avatar-queue__wait--ondeck' : ''}`}>
+                  {waitLabel}
+                </span>
+                <span className="avatar-queue__chevron" aria-hidden="true">{isExpanded ? '▾' : '▸'}</span>
+              </div>
 
-              <div className="queue-item__info">
-                <div className="queue-item__name-row">
-                  {isPair && (
-                    <span className="queue-item__pair-icon" aria-label="Fixed pair">🔗</span>
-                  )}
-                  <button
-                    onClick={() => handleNameClick(entry.playerId)}
-                    aria-label={`View profile for ${ariaLabel}`}
-                    className={`queue-item__name-btn ${nameClassName}`}
-                  >
-                    {displayName}
-                  </button>
-                </div>
-
-                <div className="queue-item__details">
-                  <StarRatingIcons starRating={starRating} />
-                  <span className="queue-item__record">
-                    {wins}-{losses}
-                  </span>
-                  {diversity && diversity[entry.playerId] !== undefined && (
-                    <span className="queue-item__diversity" aria-label={`Diversity ${diversity[entry.playerId]}%`}>
-                      {diversity[entry.playerId]}%
-                    </span>
-                  )}
-                  <StreakBadge streak={streak} />
-                </div>
-                {waitEstimates && waitEstimates[entry.playerId] !== undefined && waitEstimates[entry.playerId] !== null && (
-                  <div className="queue-item__wait-estimate">
-                    {index === 0 ? (
-                      <span className="queue-item__wait-estimate--next" aria-label="You're up next!">You're up next!</span>
-                    ) : (
-                      <span className="queue-item__wait-estimate--countdown" aria-label={`You're up in approximately ${waitEstimates[entry.playerId]} minutes`}>
-                        You're up in ~{waitEstimates[entry.playerId]} min
-                      </span>
+              {/* Expanded detail */}
+              {isExpanded && (
+                <div className="avatar-queue__detail">
+                  <div className="avatar-queue__stats">
+                    <span>{wins}W-{losses}L</span>
+                    {diversity && diversity[entry.playerId] !== undefined && (
+                      <span>{diversity[entry.playerId]}% div</span>
                     )}
                   </div>
-                )}
-              </div>
-
-              <div className="queue-item__actions">
-                <button
-                  onClick={() => setPairModalPlayerId(entry.playerId)}
-                  aria-label={isPair ? `Manage pair for ${ariaLabel}` : `Pair ${ariaLabel}`}
-                  className={`queue-item__btn${isPair ? ' queue-item__btn--paired' : ''}`}
-                  title={isPair ? 'Manage pair' : 'Pair player'}
-                >
-                  🔗
-                </button>
-                <button
-                  onClick={() => onMoveUp(entry.playerId)}
-                  disabled={index === 0}
-                  aria-label={`Move ${ariaLabel} up`}
-                  className="queue-item__btn"
-                >
-                  ↑
-                </button>
-                <button
-                  onClick={() => onMoveDown(entry.playerId)}
-                  disabled={index === lastIndex}
-                  aria-label={`Move ${ariaLabel} down`}
-                  className="queue-item__btn"
-                >
-                  ↓
-                </button>
-                <button
-                  onClick={() => onRemove(entry.playerId)}
-                  aria-label={`Remove ${ariaLabel}`}
-                  className="queue-item__btn queue-item__btn--remove"
-                >
-                  ✕
-                </button>
-              </div>
+                  <div className="avatar-queue__actions">
+                    <button
+                      onClick={() => handleNameClick(entry.playerId)}
+                      className="avatar-queue__action-btn"
+                      title="View profile"
+                    >👤</button>
+                    <button
+                      onClick={() => setPairModalPlayerId(entry.playerId)}
+                      className={`avatar-queue__action-btn${isPair ? ' avatar-queue__action-btn--active' : ''}`}
+                      title={isPair ? 'Manage pair' : 'Pair'}
+                    >🔗</button>
+                    <button onClick={() => onMoveUp(entry.playerId)} disabled={index === 0} className="avatar-queue__action-btn">↑</button>
+                    <button onClick={() => onMoveDown(entry.playerId)} disabled={index === lastIndex} className="avatar-queue__action-btn">↓</button>
+                    <button onClick={() => onRemove(entry.playerId)} className="avatar-queue__action-btn avatar-queue__action-btn--remove">✕</button>
+                  </div>
+                </div>
+              )}
             </li>
           );
         })}
-      </ol>
+      </ul>
 
       {/* Internal profile card modal when no external handler is provided */}
       {!onPlayerClick && selectedPlayerId && sessionId && (

@@ -646,7 +646,7 @@ function OrganizerDashboard() {
                   </strong>
                 </p>
                 {state.qualityMetrics.recentMatchRatings.length > 0 && (
-                  <ul className="organizer-dashboard__recent-ratings" style={{ listStyle: 'none', padding: 0, margin: '0.5rem 0 0', maxHeight: '24rem', overflowY: state.qualityMetrics.recentMatchRatings.length > 20 ? 'auto' : 'visible' }}>
+                  <ul className="organizer-dashboard__recent-ratings" style={{ listStyle: 'none', padding: 0, margin: '0.5rem 0 0', maxHeight: '20rem', overflowY: 'auto' }}>
                     {state.qualityMetrics.recentMatchRatings.map((r, i) => (
                       <li key={i} style={{ padding: '0.2rem 0', fontSize: '0.9rem' }}>
                         Match {i + 1} · Court {r.courtNumber}:{' '}

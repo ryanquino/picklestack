@@ -82,6 +82,7 @@ function CourtsPanel({
             onChange={(e) => setAutoStart(e.target.checked)}
             aria-label="Enable auto-start matches"
           />
+          <span className="courts-panel__auto-start-switch" />
           <span className="courts-panel__auto-start-label">Auto-start</span>
         </label>
       </div>
