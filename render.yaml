@@ -1,11 +1,10 @@
 services:
   - type: web
-    name: picklestack-server
+    name: picklestack
     runtime: node
-    buildCommand: npm install && npm rebuild better-sqlite3
-    startCommand: node --import tsx server/src/index.ts
+    plan: free
+    buildCommand: npm install && cd client && npm install && npm run build && cd ..
+    startCommand: cd server && NODE_ENV=production npm start
     envVars:
       - key: NODE_ENV
         value: production
-      - key: NODE_VERSION
-        value: "22"
