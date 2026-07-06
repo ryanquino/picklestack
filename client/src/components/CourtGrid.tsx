@@ -172,6 +172,7 @@ function CourtCard({
     <div
       className={cardClassName}
       aria-label={`Court ${court.courtNumber} - ${getStatusLabel(status)}`}
+      data-court={court.courtNumber}
     >
       {/* Countdown overlay */}
       {countdown !== null && (
@@ -529,9 +530,19 @@ function CourtGrid({
   }
 
   function handleMatchCompleted() {
+    const completedCourt = dialogCourtNumber;
     setDialogCourtNumber(null);
     if (onMatchCompleted) {
       onMatchCompleted();
+    }
+    // Scroll to the completed court card after a brief delay for state to update
+    if (completedCourt !== null) {
+      setTimeout(() => {
+        const courtElement = document.querySelector(`[data-court="${completedCourt}"]`);
+        if (courtElement) {
+          courtElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 300);
     }
   }
 
