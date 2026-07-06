@@ -646,11 +646,15 @@ export function selectPairing(input: PairingInput): PairingResult {
   const minSkillGap = Math.min(...filtered.map(c => c.skillGap));
   const bestBySkillGap = filtered.filter(c => c.skillGap === minSkillGap);
 
-  // Step 7a: Break ties by fewest prior encounters (prefer fresh matchups)
-  const minEncounters = Math.min(...bestBySkillGap.map(c => (c as any).encounterCount ?? 0));
-  const bestByEncounters = bestBySkillGap.filter(c => ((c as any).encounterCount ?? 0) === minEncounters);
+  // Step 7a: Break ties by earliest queue position (ensure top-of-queue players get matched)
+  const minQueuePos = Math.min(...bestBySkillGap.map(c => c.earliestQueuePosition));
+  const bestByQueuePos = bestBySkillGap.filter(c => c.earliestQueuePosition === minQueuePos);
 
-  // Step 7b: Break ties by highest diversity bonus (descending, higher is better)
+  // Step 7b: Break ties by fewest prior encounters (prefer fresh matchups)
+  const minEncounters = Math.min(...bestByQueuePos.map(c => (c as any).encounterCount ?? 0));
+  const bestByEncounters = bestByQueuePos.filter(c => ((c as any).encounterCount ?? 0) === minEncounters);
+
+  // Step 7c: Break ties by highest diversity bonus (descending, higher is better)
   // Compute diversity bonus ONLY for the finalists (deferred from Step 3 for performance)
   let bestByDiversity: TeamCombination[];
   if (pairingMode === 'queue' || !sessionId || bestByEncounters.length <= 1) {
@@ -684,12 +688,8 @@ export function selectPairing(input: PairingInput): PairingResult {
   const minFreqSum = Math.min(...bestByDiversity.map(c => c.teammateFrequencySum));
   const bestByFreqSum = bestByDiversity.filter(c => c.teammateFrequencySum === minFreqSum);
 
-  // Step 9: Break remaining ties by earliest queue position
-  const minQueuePos = Math.min(...bestByFreqSum.map(c => c.earliestQueuePosition));
-  const bestByQueuePos = bestByFreqSum.filter(c => c.earliestQueuePosition === minQueuePos);
-
   // Return the first winning combination
-  const winner = bestByQueuePos[0];
+  const winner = bestByFreqSum[0];
   return {
     team1: winner.team1,
     team2: winner.team2,
