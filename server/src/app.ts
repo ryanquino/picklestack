@@ -6,6 +6,7 @@ import * as queueService from './services/queueService';
 import * as courtService from './services/courtService';
 import * as matchResultService from './services/matchResultService';
 import * as achievementsService from './services/achievementsService';
+import { computeSessionAwards } from './services/sessionAwardsService';
 import * as ratingService from './services/ratingService';
 import * as fixedPairService from './services/fixedPairService';
 import { computeSessionDiversity } from './services/diversityService';
@@ -225,6 +226,7 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response, next: NextFunc
       activeMatches: matches,
       playerStats,
       achievements,
+      sessionAwards: computeSessionAwards(sessionId),
       totalCompletedMatches: getCompletedMatchCountBySession(sessionId),
       diversity,
       waitEstimates,
@@ -436,6 +438,7 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
       activeMatches: matches,
       playerStats,
       achievements,
+      sessionAwards: computeSessionAwards(sessionId),
       completedMatches,
       totalCompletedMatches: getCompletedMatchCountBySession(sessionId),
       waitEstimates,

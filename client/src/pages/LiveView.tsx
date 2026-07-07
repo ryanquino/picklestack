@@ -4,6 +4,7 @@ import { getSessionLive } from '../api';
 import type { PlayerStats, Achievement, LeaderboardEntry, StarRating, GameMode, MatchingMode } from '../types';
 import Leaderboard from '../components/Leaderboard';
 import ScrollToTopButton from '../components/ScrollToTopButton';
+import SessionAwards from '../components/SessionAwards';
 import LeaderboardCard from '../components/LeaderboardCard';
 import PlayerProfileCard from '../components/PlayerProfileCard';
 import LiveSessionHeader from '../components/LiveSessionHeader';
@@ -501,6 +502,11 @@ function LiveView() {
           </ul>
         )}
       </section>
+
+      {/* Session Awards */}
+      {(state.data as any).sessionAwards && (state.data as any).sessionAwards.length > 0 && (
+        <SessionAwards awards={(state.data as any).sessionAwards} />
+      )}
 
       {/* Leaderboard at the bottom, scrollable */}
       {playerStats.length > 0 && (

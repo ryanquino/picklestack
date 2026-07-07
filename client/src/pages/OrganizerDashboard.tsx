@@ -10,6 +10,7 @@ import SessionHeader from '../components/SessionHeader';
 import Navbar from '../components/Navbar';
 import Leaderboard from '../components/Leaderboard';
 import LeaderboardCard from '../components/LeaderboardCard';
+import SessionAwards from '../components/SessionAwards';
 import QRCodeDisplay from '../components/QRCodeDisplay';
 import PlayerProfileCard from '../components/PlayerProfileCard';
 import SessionSettingsModal from '../components/SessionSettingsModal';
@@ -670,6 +671,12 @@ function OrganizerDashboard() {
           </section> */}
 
           {/* Leaderboard Card at the bottom */}
+          {/* Session Awards */}
+          {(state as any).sessionAwards && (state as any).sessionAwards.length > 0 && (
+            <SessionAwards awards={(state as any).sessionAwards} />
+          )}
+
+          {/* Leaderboard Card */}
           {(state.playerStats ?? []).length > 0 && (
             <section className="organizer-dashboard__leaderboard-card">
               <LeaderboardCard playerStats={(state.playerStats ?? []) as import('../types').PlayerStats[]} />
