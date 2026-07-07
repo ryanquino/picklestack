@@ -41,7 +41,7 @@ function StarDisplay({ rating }: { rating: StarRating }) {
 }
 
 function StreakDisplay({ streak }: { streak: number }) {
-  if (streak === 0) return <span style={{ color: '#6b7280' }}>—</span>;
+  if (streak === 0) return <span style={{ color: 'var(--color-text-secondary)' }}>—</span>;
   if (streak > 0) return <span style={{ color: '#dc2626' }}>🔥 {streak}W</span>;
   return <span style={{ color: '#2563eb' }}>❄️ {Math.abs(streak)}L</span>;
 }
@@ -165,7 +165,8 @@ function PlayerProfileCard({ sessionId, playerId, onClose, diversityPercentage, 
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        backdropFilter: 'blur(4px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -176,14 +177,16 @@ function PlayerProfileCard({ sessionId, playerId, onClose, diversityPercentage, 
       <div
         ref={modalRef}
         style={{
-          background: '#fff',
-          borderRadius: '12px',
+          background: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
+          borderRadius: '16px',
           maxWidth: '500px',
           width: '100%',
           maxHeight: '85vh',
           overflowY: 'auto',
           padding: '1.5rem',
           position: 'relative',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
         }}
       >
         <button
@@ -198,7 +201,7 @@ function PlayerProfileCard({ sessionId, playerId, onClose, diversityPercentage, 
             border: 'none',
             fontSize: '1.5rem',
             cursor: 'pointer',
-            color: '#6b7280',
+            color: 'var(--color-text-secondary)',
             lineHeight: 1,
             padding: '0.25rem',
           }}
@@ -207,7 +210,7 @@ function PlayerProfileCard({ sessionId, playerId, onClose, diversityPercentage, 
         </button>
 
         {loading && (
-          <p style={{ textAlign: 'center', color: '#6b7280', padding: '2rem 0' }}>
+          <p style={{ textAlign: 'center', color: 'var(--color-text-secondary)', padding: '2rem 0' }}>
             Loading profile…
           </p>
         )}
@@ -222,7 +225,7 @@ function PlayerProfileCard({ sessionId, playerId, onClose, diversityPercentage, 
           <>
             {/* Header */}
             <div style={{ marginBottom: '1.25rem' }}>
-              <h2 style={{ margin: '0 0 0.25rem', fontSize: '1.25rem', color: '#111827' }}>
+              <h2 style={{ margin: '0 0 0.25rem', fontSize: '1.25rem', color: 'var(--color-text-primary)' }}>
                 {profile.playerName}
               </h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -287,7 +290,7 @@ function PlayerProfileCard({ sessionId, playerId, onClose, diversityPercentage, 
             {/* Achievements */}
             {profile.achievements.length > 0 && (
               <section style={{ marginBottom: '1.25rem' }}>
-                <h3 style={{ fontSize: '0.95rem', color: '#374151', margin: '0 0 0.5rem' }}>
+                <h3 style={{ fontSize: '0.95rem', color: 'var(--color-text-primary)', margin: '0 0 0.5rem' }}>
                   Achievements
                 </h3>
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -314,11 +317,11 @@ function PlayerProfileCard({ sessionId, playerId, onClose, diversityPercentage, 
 
             {/* Match History */}
             <section style={{ marginBottom: '1.25rem' }}>
-              <h3 style={{ fontSize: '0.95rem', color: '#374151', margin: '0 0 0.5rem' }}>
+              <h3 style={{ fontSize: '0.95rem', color: 'var(--color-text-primary)', margin: '0 0 0.5rem' }}>
                 Recent Matches
               </h3>
               {recentMatches.length === 0 ? (
-                <p style={{ color: '#6b7280', fontSize: '0.85rem', margin: 0 }}>
+                <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem', margin: 0 }}>
                   No matches played yet.
                 </p>
               ) : (
@@ -333,7 +336,7 @@ function PlayerProfileCard({ sessionId, playerId, onClose, diversityPercentage, 
             {/* Head-to-Head */}
             {sortedHeadToHead.length > 0 && (
               <section>
-                <h3 style={{ fontSize: '0.95rem', color: '#374151', margin: '0 0 0.5rem' }}>
+                <h3 style={{ fontSize: '0.95rem', color: 'var(--color-text-primary)', margin: '0 0 0.5rem' }}>
                   Head-to-Head
                 </h3>
                 <table
@@ -344,32 +347,32 @@ function PlayerProfileCard({ sessionId, playerId, onClose, diversityPercentage, 
                   }}
                 >
                   <thead>
-                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <th style={{ textAlign: 'left', padding: '0.4rem 0.25rem', color: '#6b7280', fontWeight: 500 }}>
+                    <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                      <th style={{ textAlign: 'left', padding: '0.4rem 0.25rem', color: 'var(--color-text-secondary)', fontWeight: 500 }}>
                         Opponent
                       </th>
-                      <th style={{ textAlign: 'center', padding: '0.4rem 0.25rem', color: '#6b7280', fontWeight: 500 }}>
+                      <th style={{ textAlign: 'center', padding: '0.4rem 0.25rem', color: 'var(--color-text-secondary)', fontWeight: 500 }}>
                         W
                       </th>
-                      <th style={{ textAlign: 'center', padding: '0.4rem 0.25rem', color: '#6b7280', fontWeight: 500 }}>
+                      <th style={{ textAlign: 'center', padding: '0.4rem 0.25rem', color: 'var(--color-text-secondary)', fontWeight: 500 }}>
                         L
                       </th>
-                      <th style={{ textAlign: 'center', padding: '0.4rem 0.25rem', color: '#6b7280', fontWeight: 500 }}>
+                      <th style={{ textAlign: 'center', padding: '0.4rem 0.25rem', color: 'var(--color-text-secondary)', fontWeight: 500 }}>
                         Games
                       </th>
                     </tr>
                   </thead>
                   <tbody>
                     {sortedHeadToHead.map((record) => (
-                      <tr key={record.opponentId} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                        <td style={{ padding: '0.4rem 0.25rem', color: '#111827', fontWeight: 500 }}>{record.opponentName}</td>
+                      <tr key={record.opponentId} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                        <td style={{ padding: '0.4rem 0.25rem', color: 'var(--color-text-primary)', fontWeight: 500 }}>{record.opponentName}</td>
                         <td style={{ textAlign: 'center', padding: '0.4rem 0.25rem', color: '#16a34a' }}>
                           {record.wins}
                         </td>
                         <td style={{ textAlign: 'center', padding: '0.4rem 0.25rem', color: '#dc2626' }}>
                           {record.losses}
                         </td>
-                        <td style={{ textAlign: 'center', padding: '0.4rem 0.25rem', color: '#374151', fontWeight: 600 }}>
+                        <td style={{ textAlign: 'center', padding: '0.4rem 0.25rem', color: 'var(--color-text-primary)', fontWeight: 600 }}>
                           {record.encounters}
                         </td>
                       </tr>
@@ -388,10 +391,10 @@ function PlayerProfileCard({ sessionId, playerId, onClose, diversityPercentage, 
 function StatItem({ label, value }: { label: string; value: string | React.ReactNode }) {
   return (
     <div style={{ textAlign: 'center' }}>
-      <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.15rem' }}>
+      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginBottom: '0.15rem' }}>
         {label}
       </div>
-      <div style={{ fontSize: '1rem', fontWeight: 600, color: '#111827' }}>
+      <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
         {value}
       </div>
     </div>
@@ -412,7 +415,7 @@ function MatchHistoryItem({ match }: { match: MatchHistoryEntry }) {
         alignItems: 'center',
         gap: '0.5rem',
         padding: '0.4rem 0',
-        borderBottom: '1px solid #f3f4f6',
+        borderBottom: '1px solid var(--color-border)',
         fontSize: '0.85rem',
       }}
     >
@@ -425,13 +428,13 @@ function MatchHistoryItem({ match }: { match: MatchHistoryEntry }) {
       >
         {resultLabel}
       </span>
-      <span style={{ color: '#374151', minWidth: '3rem', fontWeight: 500 }}>
+      <span style={{ color: 'var(--color-text-primary)', minWidth: '3rem', fontWeight: 500 }}>
         {scoreText}
       </span>
-      <span style={{ color: '#6b7280', minWidth: '2rem' }}>
+      <span style={{ color: 'var(--color-text-secondary)', minWidth: '2rem' }}>
         Ct {match.courtNumber}
       </span>
-      <span style={{ flex: 1, color: '#374151' }}>
+      <span style={{ flex: 1, color: 'var(--color-text-primary)' }}>
         {formatTimestamp(match.timestamp)}
       </span>
     </li>

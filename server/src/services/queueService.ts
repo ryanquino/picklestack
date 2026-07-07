@@ -120,10 +120,11 @@ export interface QueueEntryWithName {
   sessionId: string;
   position: number;
   playerName: string;
-  isPairSlot: boolean;              // true if this entry represents a fixed pair
-  pairId: string | null;            // the fixed pair ID, or null
-  partnerPlayerId: string | null;   // the other player in the pair
-  partnerPlayerName: string | null; // partner's display name
+  isPairSlot: boolean;
+  pairId: string | null;
+  partnerPlayerId: string | null;
+  partnerPlayerName: string | null;
+  queuedAt: string;
 }
 
 /**
@@ -140,7 +141,6 @@ export function getQueue(sessionId: string): QueueEntryWithName[] {
     if (entry.pair_id) {
       const pair = getFixedPairById(entry.pair_id);
       if (pair) {
-        // The partner is the player in the pair who is NOT the anchor (entry.player_id)
         const partnerPlayerId =
           pair.player1_id === entry.player_id ? pair.player2_id : pair.player1_id;
         const partnerPlayer = getPlayerById(partnerPlayerId);
@@ -153,6 +153,7 @@ export function getQueue(sessionId: string): QueueEntryWithName[] {
           pairId: entry.pair_id,
           partnerPlayerId,
           partnerPlayerName: partnerPlayer ? partnerPlayer.name : '',
+          queuedAt: entry.queued_at || '',
         };
       }
     }
@@ -167,6 +168,7 @@ export function getQueue(sessionId: string): QueueEntryWithName[] {
       pairId: null,
       partnerPlayerId: null,
       partnerPlayerName: null,
+      queuedAt: entry.queued_at || '',
     };
   });
 }

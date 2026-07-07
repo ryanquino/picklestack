@@ -318,6 +318,7 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
     // Format queue with "up next" marking for first 4, plus player stats
     const formattedQueue = queue.map((entry, index) => {
       const stats = statsMap.get(entry.playerId);
+      const player = getPlayerById(entry.playerId);
       return {
         playerId: entry.playerId,
         playerName: entry.playerName,
@@ -331,6 +332,7 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
         streak: stats?.streak ?? 0,
         isMvp: entry.playerId === mvpPlayerId,
         achievements: achievementsByPlayer.get(entry.playerId) || [],
+        queuedAt: entry.queuedAt,
       };
     });
 

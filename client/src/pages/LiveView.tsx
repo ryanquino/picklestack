@@ -41,6 +41,8 @@ interface EnrichedQueueEntry {
   streak: number;
   isMvp: boolean;
   achievements: Achievement[];
+  checkedInAt?: string;
+  queuedAt?: string;
 }
 
 interface EnrichedMatchPlayer {
@@ -151,7 +153,7 @@ function renderStars(starRating: StarRating): string {
 
 /** Compute on-deck player count based on game mode */
 function getOnDeckCount(gameMode: GameMode, matchingMode: MatchingMode, queueLength: number): number {
-  if (matchingMode === 'smart') {
+  if (matchingMode !== 'queue') {
     return Math.min(queueLength, 8);
   }
   if (gameMode === 'doubles') {
@@ -326,7 +328,7 @@ function LiveView() {
   // Active session
   const { session, queue, activeMatches, playerStats, achievements, totalCompletedMatches, waitEstimates, diversity } = state.data;
   const gameMode = session.gameMode || 'doubles';
-  const matchingMode = session.matchingMode || 'smart';
+  const matchingMode = session.matchingMode || 'balanced';
   const onDeckCount = getOnDeckCount(gameMode, matchingMode, queue.length);
   const onDeckPlayers = queue.slice(0, onDeckCount);
   const leaderboardEntries = buildLeaderboard(playerStats, achievements);
@@ -466,12 +468,10 @@ function LiveView() {
         ) : (
           <ul className="avatar-queue" aria-label="Queued players">
             {queue.map((entry, idx) => {
-              const waitMinutes = waitEstimates?.[entry.playerId] ?? null;
               const playersPerMatch = gameMode === 'singles' ? 2 : 4;
               const isNext = idx < playersPerMatch;
               const isOnDeck = idx < onDeckCount;
               const dotIcon = isNext ? '🟢' : isOnDeck ? '🟡' : '⚪';
-              const waitLabel = isNext ? 'Next' : isOnDeck ? 'On Deck' : (waitMinutes != null ? `${waitMinutes}m` : '');
 
               return (
               <li
@@ -485,9 +485,14 @@ function LiveView() {
                     {entry.streak >= 2 && <span className="avatar-queue__streak">🔥</span>}
                     {entry.streak <= -2 && <span className="avatar-queue__streak">❄️</span>}
                   </span>
+                  {entry.starRating && (
+                    <span className="avatar-queue__stars" aria-label={`${entry.starRating} stars`}>
+                      {'★'.repeat(entry.starRating)}{'☆'.repeat(5 - entry.starRating)}
+                    </span>
+                  )}
                   <span className="avatar-queue__record">{entry.wins}-{entry.losses}</span>
                   <span className={`avatar-queue__wait${isNext ? ' avatar-queue__wait--now' : isOnDeck ? ' avatar-queue__wait--ondeck' : ''}`}>
-                    {waitLabel}
+                    {entry.queuedAt && entry.queuedAt.length > 0 && (entry.wins + entry.losses) > 0 && <LiveTimer startedAt={entry.queuedAt} />}
                   </span>
                 </div>
               </li>

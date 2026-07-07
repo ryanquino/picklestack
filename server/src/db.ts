@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS queue_entries (
   player_id TEXT PRIMARY KEY REFERENCES players(id),
   session_id TEXT NOT NULL REFERENCES sessions(id),
   position INTEGER NOT NULL,
-  pair_id TEXT REFERENCES fixed_pairs(id)
+  pair_id TEXT REFERENCES fixed_pairs(id),
+  queued_at TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS matches (
@@ -159,6 +160,12 @@ export function getDb(): Database.Database {
   const hasPairId = queueColumnsInfo.some((col) => col.name === 'pair_id');
   if (!hasPairId) {
     db.exec('ALTER TABLE queue_entries ADD COLUMN pair_id TEXT REFERENCES fixed_pairs(id)');
+  }
+
+  // Migration: Add queued_at column to queue_entries
+  const hasQueuedAt = queueColumnsInfo.some((col) => col.name === 'queued_at');
+  if (!hasQueuedAt) {
+    db.exec("ALTER TABLE queue_entries ADD COLUMN queued_at TEXT NOT NULL DEFAULT ''");
   }
 
   // Migration: Add session_duration_hours column to sessions if it doesn't exist

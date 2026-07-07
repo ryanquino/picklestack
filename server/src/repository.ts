@@ -33,6 +33,7 @@ export interface QueueEntryRow {
   session_id: string;
   position: number;
   pair_id?: string | null;
+  queued_at?: string;
 }
 
 export interface FixedPairRow {
@@ -135,10 +136,10 @@ export function deletePlayer(id: string): void {
 
 export function createQueueEntry(entry: QueueEntryRow): QueueEntryRow {
   const db = getDb();
-  const row = { ...entry, pair_id: entry.pair_id ?? null };
+  const row = { ...entry, pair_id: entry.pair_id ?? null, queued_at: entry.queued_at || new Date().toISOString() };
   db.prepare(`
-    INSERT INTO queue_entries (player_id, session_id, position, pair_id)
-    VALUES (@player_id, @session_id, @position, @pair_id)
+    INSERT INTO queue_entries (player_id, session_id, position, pair_id, queued_at)
+    VALUES (@player_id, @session_id, @position, @pair_id, @queued_at)
   `).run(row);
   return row;
 }

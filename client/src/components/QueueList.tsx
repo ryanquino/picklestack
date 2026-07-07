@@ -1,7 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { PlayerStats, Achievement, StarRating, GameMode, MatchingMode } from '../types';
 import PlayerProfileCard from './PlayerProfileCard';
 import PairPlayerModal from './PairPlayerModal';
+
+/** Live wait timer — shows m:ss since a given timestamp */
+function WaitTimer({ since }: { since: string }) {
+  const [elapsed, setElapsed] = useState(() => {
+    const diff = Date.now() - new Date(since).getTime();
+    return Math.max(0, Math.floor(diff / 1000));
+  });
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const diff = Date.now() - new Date(since).getTime();
+      setElapsed(Math.max(0, Math.floor(diff / 1000)));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [since]);
+
+  const minutes = Math.floor(elapsed / 60);
+  const seconds = elapsed % 60;
+  return <span>{minutes}:{seconds.toString().padStart(2, '0')}</span>;
+}
 
 interface QueueEntry {
   playerId: string;
@@ -19,6 +39,7 @@ interface QueueEntry {
   pairId?: string | null;
   partnerPlayerId?: string | null;
   partnerPlayerName?: string | null;
+  queuedAt?: string;
 }
 
 interface QueueListProps {
@@ -51,7 +72,7 @@ function getOnDeckPlayerIds(
 ): Set<string> {
   let count: number;
 
-  if (matchingMode === 'smart') {
+  if (matchingMode !== 'queue') {
     count = Math.min(queue.length, 8);
   } else if (gameMode === 'doubles') {
     count = Math.min(queue.length, 4);
@@ -139,11 +160,8 @@ function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'bal
   }
 
   function getWaitLabel(index: number, playerId: string, isOnDeck: boolean): string {
-    const playersPerMatch = gameMode === 'singles' ? 2 : 4;
-    if (index < playersPerMatch) return 'Next';
-    if (isOnDeck) return 'On Deck';
     if (waitEstimates && waitEstimates[playerId] != null) {
-      return `${waitEstimates[playerId]}m`;
+      return `~${waitEstimates[playerId]}m`;
     }
     return '';
   }
@@ -176,45 +194,42 @@ function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'bal
           return (
             <li
               key={entry.playerId}
-              className={`avatar-queue__item${isExpanded ? ' avatar-queue__item--expanded' : ''}${isNextMatch ? ' avatar-queue__item--next' : isOnDeck ? ' avatar-queue__item--ondeck' : ''}`}
+              className={`avatar-queue__item${isNextMatch ? ' avatar-queue__item--next' : isOnDeck ? ' avatar-queue__item--ondeck' : ''}`}
             >
-              {/* Compact row */}
-              <div
-                className="avatar-queue__row"
-                onClick={() => setExpandedPlayerId(isExpanded ? null : entry.playerId)}
-              >
+              {/* Row — click name to open profile */}
+              <div className="avatar-queue__row">
                 <span className="avatar-queue__dot" aria-hidden="true">{getStatusDot(index, isOnDeck)}</span>
-                <span className="avatar-queue__name">
+                <span
+                  className="avatar-queue__name"
+                  onClick={() => handleNameClick(entry.playerId)}
+                >
                   {isPair && <span className="avatar-queue__pair-icon">🔗</span>}
                   {displayName}
                   {streak >= 2 && <span className="avatar-queue__streak">🔥</span>}
                   {streak <= -2 && <span className="avatar-queue__streak">❄️</span>}
                 </span>
+                {entry.starRating && (
+                  <span className="avatar-queue__stars" aria-label={`${entry.starRating} stars`}>
+                    {'★'.repeat(entry.starRating)}{'☆'.repeat(5 - entry.starRating)}
+                  </span>
+                )}
                 <span className="avatar-queue__record">{wins}-{losses}</span>
                 <span className={`avatar-queue__wait${isNextMatch ? ' avatar-queue__wait--now' : isOnDeck ? ' avatar-queue__wait--ondeck' : ''}`}>
-                  {waitLabel}
+                  {entry.queuedAt && entry.queuedAt.length > 0 && (wins + losses) > 0 ? <WaitTimer since={entry.queuedAt} /> : ''}
                 </span>
-                <span className="avatar-queue__chevron" aria-hidden="true">{isExpanded ? '▾' : '▸'}</span>
+                <span
+                  className="avatar-queue__chevron"
+                  aria-hidden="true"
+                  onClick={() => setExpandedPlayerId(isExpanded ? null : entry.playerId)}
+                >
+                  {isExpanded ? '▾' : '▸'}
+                </span>
               </div>
 
-              {/* Expanded detail */}
+              {/* Expanded — actions only */}
               {isExpanded && (
                 <div className="avatar-queue__detail">
-                  <div className="avatar-queue__stats">
-                    <span>{wins}W-{losses}L</span>
-                    {entry.starRating && (
-                      <StarRatingIcons starRating={entry.starRating} />
-                    )}
-                    {diversity && diversity[entry.playerId] !== undefined && (
-                      <span>{diversity[entry.playerId]}% div</span>
-                    )}
-                  </div>
                   <div className="avatar-queue__actions">
-                    <button
-                      onClick={() => handleNameClick(entry.playerId)}
-                      className="avatar-queue__action-btn"
-                      title="View profile"
-                    >👤</button>
                     <button
                       onClick={() => setPairModalPlayerId(entry.playerId)}
                       className={`avatar-queue__action-btn${isPair ? ' avatar-queue__action-btn--active' : ''}`}
