@@ -501,23 +501,25 @@ function CreateSession() {
           )}
 
           {pendingPlayers.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-              <span style={{ fontSize: '0.8rem', color: '#6b7280' }}>
-                {pendingPlayers.filter((p) => p.checkedIn).length} of {pendingPlayers.length} checked in
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', marginTop: '1rem' }}>
+              <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', fontWeight: 'var(--font-medium)' }}>
+                {pendingPlayers.filter((p) => p.checkedIn).length}/{pendingPlayers.length} checked in
               </span>
               {pendingPlayers.some((p) => !p.checkedIn) && (
                 <button
                   type="button"
                   onClick={() => setPendingPlayers((prev) => prev.map((p) => ({ ...p, checkedIn: true })))}
                   style={{
-                    padding: '0.25rem 0.75rem',
-                    border: '1px solid #16a34a',
-                    borderRadius: '4px',
-                    background: '#f0fdf4',
-                    color: '#16a34a',
+                    padding: '0.4rem 0.9rem',
+                    border: '1px solid var(--color-success)',
+                    borderRadius: 'var(--radius-full)',
+                    background: 'transparent',
+                    color: 'var(--color-success)',
                     cursor: 'pointer',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
+                    fontSize: 'var(--text-xs)',
+                    fontWeight: 'var(--font-semibold)',
+                    letterSpacing: '0.3px',
+                    transition: 'all 0.2s',
                   }}
                 >
                   ✓ Check All In
@@ -529,8 +531,18 @@ function CreateSession() {
           {pendingPlayers.length > 0 && (
             <ul className="create-session__player-list" aria-label="Pending players">
               {pendingPlayers.map((player) => (
-                <li key={player.localId} className="create-session__player-item" style={{ opacity: player.checkedIn ? 1 : 0.7 }}>
-                  {/* Check-in toggle */}
+                <li
+                  key={player.localId}
+                  className="create-session__player-item"
+                  style={{
+                    padding: '0.75rem 1rem',
+                    gap: '0.75rem',
+                    opacity: player.checkedIn ? 1 : 0.6,
+                    transition: 'opacity 0.2s, background 0.2s',
+                    background: player.checkedIn ? 'rgba(34, 197, 94, 0.04)' : 'transparent',
+                  }}
+                >
+                  {/* Check-in toggle - modern pill/switch style */}
                   <button
                     type="button"
                     onClick={() => handleToggleCheckIn(player.localId)}
@@ -538,82 +550,143 @@ function CreateSession() {
                     aria-pressed={player.checkedIn}
                     title={player.checkedIn ? 'Checked in' : 'Tap to check in'}
                     style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '50%',
-                      border: player.checkedIn ? '2px solid #16a34a' : '2px solid #d1d5db',
-                      background: player.checkedIn ? '#dcfce7' : '#f9fafb',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
+                      width: '44px',
+                      height: '26px',
+                      borderRadius: 'var(--radius-full)',
+                      border: 'none',
+                      background: player.checkedIn ? 'var(--color-success)' : 'var(--color-border)',
+                      position: 'relative',
                       cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      fontSize: '0.9rem',
+                      transition: 'background 0.25s ease',
+                      flexShrink: 0,
+                      padding: 0,
                     }}
                   >
-                    {player.checkedIn ? '✓' : ''}
+                    {/* Switch knob */}
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: '3px',
+                        left: player.checkedIn ? '21px' : '3px',
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: '50%',
+                        background: '#fff',
+                        transition: 'left 0.25s ease',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {player.checkedIn && (
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                          <path d="M2.5 6L5 8.5L9.5 3.5" stroke="var(--color-success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                    </span>
                   </button>
 
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, cursor: 'pointer' }}>
-                    {gameMode === 'doubles' && !isPlayerPaired(player.localId) && (
-                      <span
-                        role="checkbox"
-                        aria-checked={pairSelection.includes(player.localId)}
-                        aria-disabled={!player.checkedIn}
-                        aria-label={`Select ${player.name} for pairing`}
-                        tabIndex={player.checkedIn ? 0 : -1}
-                        onClick={() => { if (player.checkedIn) handleTogglePairSelection(player.localId); }}
-                        onKeyDown={(e) => { if (player.checkedIn && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); handleTogglePairSelection(player.localId); }}}
-                        style={{
-                          width: '18px',
-                          height: '18px',
-                          borderRadius: '4px',
-                          border: pairSelection.includes(player.localId) ? '2px solid #16a34a' : '2px solid #d1d5db',
-                          background: !player.checkedIn ? '#e5e7eb' : pairSelection.includes(player.localId) ? '#16a34a' : '#fff',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0,
-                          transition: 'all 0.15s',
-                          cursor: player.checkedIn ? 'pointer' : 'not-allowed',
-                          opacity: player.checkedIn ? 1 : 0.5,
-                        }}
-                      >
-                        {pairSelection.includes(player.localId) && (
-                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                            <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        )}
+                  {/* Player info - stacked on mobile for breathing room */}
+                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, gap: '0.25rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <span className="create-session__player-name" style={{ fontSize: 'var(--text-base)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {player.name}
                       </span>
-                    )}
-                    {isPlayerPaired(player.localId) && (
-                      <span style={{ fontSize: '0.8rem', color: '#7c3aed' }} aria-label="Paired">🔗</span>
-                    )}
-                    <span className="create-session__player-name">{player.name}</span>
-                    {!player.checkedIn && (
-                      <span style={{ fontSize: '0.7rem', color: '#9ca3af', fontStyle: 'italic' }}>
-                        not checked in
-                      </span>
-                    )}
-                  </label>
-                  <span className="create-session__player-stars" aria-label={`${player.starRating} star rating`}>
-                    {([1, 2, 3, 4, 5] as const).map((star) => (
-                      <span
-                        key={star}
-                        onClick={() => setPendingPlayers(prev => prev.map(p =>
-                          p.localId === player.localId ? { ...p, starRating: star as StarRating } : p
+                      {!player.checkedIn && (
+                        <span style={{
+                          fontSize: 'var(--text-xs)',
+                          color: 'var(--color-text-secondary)',
+                          background: 'var(--color-surface)',
+                          padding: '0.1rem 0.5rem',
+                          borderRadius: 'var(--radius-full)',
+                          border: '1px solid var(--color-border)',
+                        }}>
+                          pending
+                        </span>
+                      )}
+                      {isPlayerPaired(player.localId) && (
+                        <span style={{
+                          fontSize: 'var(--text-xs)',
+                          color: '#a78bfa',
+                          background: 'rgba(167, 139, 250, 0.1)',
+                          padding: '0.1rem 0.5rem',
+                          borderRadius: 'var(--radius-full)',
+                          fontWeight: 'var(--font-medium)',
+                        }}>
+                          🔗 paired
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      {/* Star rating */}
+                      <span className="create-session__player-stars" aria-label={`${player.starRating} star rating`} style={{ display: 'flex', gap: '2px' }}>
+                        {([1, 2, 3, 4, 5] as const).map((star) => (
+                          <span
+                            key={star}
+                            onClick={() => setPendingPlayers(prev => prev.map(p =>
+                              p.localId === player.localId ? { ...p, starRating: star as StarRating } : p
+                            ))}
+                            style={{
+                              cursor: 'pointer',
+                              color: star <= player.starRating ? '#f59e0b' : 'var(--color-border)',
+                              fontSize: '0.9rem',
+                              transition: 'color 0.15s',
+                            }}
+                          >
+                            ★
+                          </span>
                         ))}
-                        style={{
-                          cursor: 'pointer',
-                          color: star <= player.starRating ? '#f59e0b' : '#d1d5db',
-                          fontSize: '1rem',
-                        }}
-                      >
-                        ★
                       </span>
-                    ))}
-                  </span>
+                      {/* Pair checkbox - modern style */}
+                      {gameMode === 'doubles' && !isPlayerPaired(player.localId) && (
+                        <span
+                          role="checkbox"
+                          aria-checked={pairSelection.includes(player.localId)}
+                          aria-disabled={!player.checkedIn}
+                          aria-label={`Select ${player.name} for pairing`}
+                          tabIndex={player.checkedIn ? 0 : -1}
+                          onClick={() => { if (player.checkedIn) handleTogglePairSelection(player.localId); }}
+                          onKeyDown={(e) => { if (player.checkedIn && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); handleTogglePairSelection(player.localId); }}}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            padding: '0.2rem 0.6rem',
+                            borderRadius: 'var(--radius-full)',
+                            border: pairSelection.includes(player.localId)
+                              ? '1.5px solid var(--color-success)'
+                              : '1.5px solid var(--color-border)',
+                            background: !player.checkedIn
+                              ? 'transparent'
+                              : pairSelection.includes(player.localId)
+                                ? 'rgba(34, 197, 94, 0.15)'
+                                : 'transparent',
+                            cursor: player.checkedIn ? 'pointer' : 'not-allowed',
+                            opacity: player.checkedIn ? 1 : 0.4,
+                            transition: 'all 0.2s',
+                            fontSize: 'var(--text-xs)',
+                            color: pairSelection.includes(player.localId) ? 'var(--color-success)' : 'var(--color-text-secondary)',
+                            fontWeight: 'var(--font-medium)',
+                            userSelect: 'none',
+                          }}
+                        >
+                          {pairSelection.includes(player.localId) ? (
+                            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                              <path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          ) : (
+                            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                              <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5"/>
+                            </svg>
+                          )}
+                          pair
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Remove button */}
                   <button
                     type="button"
                     onClick={() => handleRemovePlayer(player.localId)}
