@@ -237,6 +237,10 @@ describe('CreateSession - Single-Page Flow', () => {
       });
       fireEvent.click(screen.getByLabelText('Add player'));
 
+      // Check in both players
+      fireEvent.click(screen.getByLabelText('Check in Alice'));
+      fireEvent.click(screen.getByLabelText('Check in Bob'));
+
       // Setup mocks for success
       mockCreateSession.mockResolvedValue({ id: 'session-123', name: 'My Session' });
       mockUpdateSessionSettings.mockResolvedValue(undefined);
@@ -313,6 +317,10 @@ describe('CreateSession - Single-Page Flow', () => {
         target: { value: 'Alice' },
       });
       fireEvent.click(screen.getByLabelText('Add player'));
+
+      // Check in Alice before submitting
+      fireEvent.click(screen.getByLabelText('Check in Alice'));
+
       fireEvent.click(screen.getByRole('button', { name: 'Create Session' }));
 
       await waitFor(() => {
@@ -346,6 +354,10 @@ describe('CreateSession - Single-Page Flow', () => {
         target: { value: 'Bob' },
       });
       fireEvent.click(screen.getByLabelText('Add player'));
+
+      // Check in both players
+      fireEvent.click(screen.getByLabelText('Check in Alice'));
+      fireEvent.click(screen.getByLabelText('Check in Bob'));
 
       fireEvent.click(screen.getByRole('button', { name: 'Create Session' }));
 

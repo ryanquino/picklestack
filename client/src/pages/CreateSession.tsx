@@ -58,6 +58,7 @@ function CreateSession() {
       localId: crypto.randomUUID(),
       name: playerNameInput.trim(),
       starRating: playerStarRatingInput,
+      checkedIn: false,
     };
 
     setPendingPlayers((prev) => [...prev, newPlayer]);
@@ -71,6 +72,19 @@ function CreateSession() {
     setPendingPairs((prev) => prev.filter((p) => p.player1LocalId !== localId && p.player2LocalId !== localId));
     // Remove from pair selection if selected
     setPairSelection((prev) => prev.filter((id) => id !== localId));
+  }
+
+  function handleToggleCheckIn(localId: string) {
+    setPendingPlayers((prev) =>
+      prev.map((p) => (p.localId === localId ? { ...p, checkedIn: !p.checkedIn } : p))
+    );
+    // If un-checking a player, remove from pair selection and any existing pairs
+    const player = pendingPlayers.find((p) => p.localId === localId);
+    if (player?.checkedIn) {
+      // Player is going from checked-in to unchecked
+      setPairSelection((prev) => prev.filter((id) => id !== localId));
+      setPendingPairs((prev) => prev.filter((p) => p.player1LocalId !== localId && p.player2LocalId !== localId));
+    }
   }
 
   function handleTogglePairSelection(localId: string) {
@@ -130,6 +144,7 @@ function CreateSession() {
         localId: crypto.randomUUID(),
         name: cleaned,
         starRating: 3,
+        checkedIn: false,
       });
     }
 
@@ -165,10 +180,11 @@ function CreateSession() {
         sessionDurationHours,
       });
 
-      // 3. Check in all pending players (collect failures, don't abort)
+      // 3. Check in all pending players that are checked in (collect failures, don't abort)
       const failures: string[] = [];
       const localIdToServerId = new Map<string, string>();
-      for (const player of pendingPlayers) {
+      const checkedInPlayers = pendingPlayers.filter((p) => p.checkedIn);
+      for (const player of checkedInPlayers) {
         try {
           const created = await addPlayer(session.id, player.name, player.starRating);
           localIdToServerId.set(player.localId, created.id);
@@ -485,30 +501,83 @@ function CreateSession() {
           )}
 
           {pendingPlayers.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+              <span style={{ fontSize: '0.8rem', color: '#6b7280' }}>
+                {pendingPlayers.filter((p) => p.checkedIn).length} of {pendingPlayers.length} checked in
+              </span>
+              {pendingPlayers.some((p) => !p.checkedIn) && (
+                <button
+                  type="button"
+                  onClick={() => setPendingPlayers((prev) => prev.map((p) => ({ ...p, checkedIn: true })))}
+                  style={{
+                    padding: '0.25rem 0.75rem',
+                    border: '1px solid #16a34a',
+                    borderRadius: '4px',
+                    background: '#f0fdf4',
+                    color: '#16a34a',
+                    cursor: 'pointer',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                  }}
+                >
+                  ✓ Check All In
+                </button>
+              )}
+            </div>
+          )}
+
+          {pendingPlayers.length > 0 && (
             <ul className="create-session__player-list" aria-label="Pending players">
               {pendingPlayers.map((player) => (
-                <li key={player.localId} className="create-session__player-item">
+                <li key={player.localId} className="create-session__player-item" style={{ opacity: player.checkedIn ? 1 : 0.7 }}>
+                  {/* Check-in toggle */}
+                  <button
+                    type="button"
+                    onClick={() => handleToggleCheckIn(player.localId)}
+                    aria-label={player.checkedIn ? `${player.name} checked in` : `Check in ${player.name}`}
+                    aria-pressed={player.checkedIn}
+                    title={player.checkedIn ? 'Checked in' : 'Tap to check in'}
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      border: player.checkedIn ? '2px solid #16a34a' : '2px solid #d1d5db',
+                      background: player.checkedIn ? '#dcfce7' : '#f9fafb',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      fontSize: '0.9rem',
+                    }}
+                  >
+                    {player.checkedIn ? '✓' : ''}
+                  </button>
+
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, cursor: 'pointer' }}>
                     {gameMode === 'doubles' && !isPlayerPaired(player.localId) && (
                       <span
                         role="checkbox"
                         aria-checked={pairSelection.includes(player.localId)}
+                        aria-disabled={!player.checkedIn}
                         aria-label={`Select ${player.name} for pairing`}
-                        tabIndex={0}
-                        onClick={() => handleTogglePairSelection(player.localId)}
-                        onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); handleTogglePairSelection(player.localId); }}}
+                        tabIndex={player.checkedIn ? 0 : -1}
+                        onClick={() => { if (player.checkedIn) handleTogglePairSelection(player.localId); }}
+                        onKeyDown={(e) => { if (player.checkedIn && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); handleTogglePairSelection(player.localId); }}}
                         style={{
                           width: '18px',
                           height: '18px',
                           borderRadius: '4px',
                           border: pairSelection.includes(player.localId) ? '2px solid #16a34a' : '2px solid #d1d5db',
-                          background: pairSelection.includes(player.localId) ? '#16a34a' : '#fff',
+                          background: !player.checkedIn ? '#e5e7eb' : pairSelection.includes(player.localId) ? '#16a34a' : '#fff',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           flexShrink: 0,
                           transition: 'all 0.15s',
-                          cursor: 'pointer',
+                          cursor: player.checkedIn ? 'pointer' : 'not-allowed',
+                          opacity: player.checkedIn ? 1 : 0.5,
                         }}
                       >
                         {pairSelection.includes(player.localId) && (
@@ -522,6 +591,11 @@ function CreateSession() {
                       <span style={{ fontSize: '0.8rem', color: '#7c3aed' }} aria-label="Paired">🔗</span>
                     )}
                     <span className="create-session__player-name">{player.name}</span>
+                    {!player.checkedIn && (
+                      <span style={{ fontSize: '0.7rem', color: '#9ca3af', fontStyle: 'italic' }}>
+                        not checked in
+                      </span>
+                    )}
                   </label>
                   <span className="create-session__player-stars" aria-label={`${player.starRating} star rating`}>
                     {([1, 2, 3, 4, 5] as const).map((star) => (

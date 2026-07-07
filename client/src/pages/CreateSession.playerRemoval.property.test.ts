@@ -29,6 +29,7 @@ const pendingPlayerArbitrary = (index: number): fc.Arbitrary<PendingPlayer> =>
     localId: `player-${index}-${name}`,
     name,
     starRating,
+    checkedIn: false,
   }));
 
 // Generator for an array of PendingPlayers with unique localIds (length 1-10)
@@ -45,6 +46,7 @@ const pendingPlayersArbitrary: fc.Arbitrary<PendingPlayer[]> = fc
           localId: uuid,
           name,
           starRating,
+          checkedIn: false,
         }))
       )
     ) as fc.Arbitrary<PendingPlayer[]>

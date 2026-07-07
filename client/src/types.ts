@@ -181,6 +181,7 @@ export interface PendingPlayer {
   localId: string;       // Client-generated UUID for React key and removal
   name: string;          // 1-30 characters
   starRating: StarRating; // 1-5
+  checkedIn: boolean;    // Must be checked in before entering the dashboard
 }
 
 /** Full player profile combining stats, history, and achievements */
