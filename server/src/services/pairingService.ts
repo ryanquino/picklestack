@@ -33,8 +33,8 @@ export interface PairingInput {
   teammateHistory: Map<string, Map<string, number>>; // playerId -> (partnerId -> count)
   opponentHistory: Map<string, Map<string, number>>; // playerId -> (opponentId -> count)
   matchConfigHistory: Set<string>; // serialized "team1-vs-team2" keys
-  sessionId?: string; // Required for diversity bonus calculation in "smart" mode
-  pairingMode?: 'smart' | 'queue'; // When "queue", diversity bonus is skipped
+  sessionId?: string; // Required for diversity bonus calculation
+  pairingMode?: 'casual' | 'balanced' | 'competitive' | 'queue'; // Matching mode
 }
 
 export interface PairingResult {
@@ -612,70 +612,75 @@ export function selectPairing(input: PairingInput): PairingResult {
   let filtered: TeamCombination[];
   filtered = allCombinations;
 
-  // Step 4c: Hard filter — eliminate combinations where any OPPONENT pair has already
-  // faced each other. This guarantees max H2H ≤ 1 (no repeat opponents).
-  // Only checks cross-team encounters (team1 vs team2), not within-team.
-  const noRepeatOpponents = filtered.filter(c => {
-    const team1Players = expandToRealPlayerIds(c.team1, [c.team1[0], c.team1[0]] as [string, string]).length > 0
-      ? expandToRealPlayerIds(c.team1, c.team2).slice(0, 2)  // not right — need proper expansion
-      : [];
-    // Actually just check: for each player on team1 vs each player on team2, no prior encounter
-    const t1 = (() => {
-      const ids: string[] = [];
-      for (const pid of c.team1) {
-        const cand = candidateMap.get(pid);
-        if (cand && cand.isPair && cand.pairedPlayerIds) {
-          ids.push(...cand.pairedPlayerIds);
-        } else {
-          ids.push(pid);
-        }
-      }
-      return [...new Set(ids)];
-    })();
-    const t2 = (() => {
-      const ids: string[] = [];
-      for (const pid of c.team2) {
-        const cand = candidateMap.get(pid);
-        if (cand && cand.isPair && cand.pairedPlayerIds) {
-          ids.push(...cand.pairedPlayerIds);
-        } else {
-          ids.push(pid);
-        }
-      }
-      return [...new Set(ids)];
-    })();
-    // Check all cross-team pairs for prior encounters
-    for (const p1 of t1) {
-      for (const p2 of t2) {
-        const key = p1 < p2 ? `${p1}|${p2}` : `${p2}|${p1}`;
-        if (encounterSet.has(key)) return false;
-      }
-    }
-    // Also check within-team pairs (teammates) for prior opponent encounters
-    for (let i = 0; i < t1.length; i++) {
-      for (let j = i + 1; j < t1.length; j++) {
-        const key = t1[i] < t1[j] ? `${t1[i]}|${t1[j]}` : `${t1[j]}|${t1[i]}`;
-        if (pairInternalSet.has(key)) continue;
-        if (encounterSet.has(key)) return false;
-      }
-    }
-    for (let i = 0; i < t2.length; i++) {
-      for (let j = i + 1; j < t2.length; j++) {
-        const key = t2[i] < t2[j] ? `${t2[i]}|${t2[j]}` : `${t2[j]}|${t2[i]}`;
-        if (pairInternalSet.has(key)) continue;
-        if (encounterSet.has(key)) return false;
-      }
-    }
-    return true;
-  });
+  // Step 4c: No-repeat opponent filter.
+  // - Casual mode: HARD requirement (H2H ≤ 1 guaranteed)
+  // - Balanced mode: soft preference (falls back if needed)
+  // - Competitive mode: skipped entirely (repeats allowed)
+  let noRepeatSet = new Set<TeamCombination>();
 
-  // Use the no-repeat filter if it leaves any results; otherwise fall back to all.
-  // NOTE: This is a soft preference — fairness (Step 7) takes priority over no-repeat.
-  if (noRepeatOpponents.length > 0) {
-    filtered = noRepeatOpponents;
+  if (pairingMode !== 'competitive') {
+    const noRepeatOpponents = filtered.filter(c => {
+      const t1 = (() => {
+        const ids: string[] = [];
+        for (const pid of c.team1) {
+          const cand = candidateMap.get(pid);
+          if (cand && cand.isPair && cand.pairedPlayerIds) {
+            ids.push(...cand.pairedPlayerIds);
+          } else {
+            ids.push(pid);
+          }
+        }
+        return [...new Set(ids)];
+      })();
+      const t2 = (() => {
+        const ids: string[] = [];
+        for (const pid of c.team2) {
+          const cand = candidateMap.get(pid);
+          if (cand && cand.isPair && cand.pairedPlayerIds) {
+            ids.push(...cand.pairedPlayerIds);
+          } else {
+            ids.push(pid);
+          }
+        }
+        return [...new Set(ids)];
+      })();
+      for (const p1 of t1) {
+        for (const p2 of t2) {
+          const key = p1 < p2 ? `${p1}|${p2}` : `${p2}|${p1}`;
+          if (encounterSet.has(key)) return false;
+        }
+      }
+      for (let i = 0; i < t1.length; i++) {
+        for (let j = i + 1; j < t1.length; j++) {
+          const key = t1[i] < t1[j] ? `${t1[i]}|${t1[j]}` : `${t1[j]}|${t1[i]}`;
+          if (pairInternalSet.has(key)) continue;
+          if (encounterSet.has(key)) return false;
+        }
+      }
+      for (let i = 0; i < t2.length; i++) {
+        for (let j = i + 1; j < t2.length; j++) {
+          const key = t2[i] < t2[j] ? `${t2[i]}|${t2[j]}` : `${t2[j]}|${t2[i]}`;
+          if (pairInternalSet.has(key)) continue;
+          if (encounterSet.has(key)) return false;
+        }
+      }
+      return true;
+    });
+
+    noRepeatSet = new Set(noRepeatOpponents);
+
+    if (pairingMode === 'casual') {
+      // Hard requirement — only allow no-repeat combos (fall back if none exist)
+      if (noRepeatOpponents.length > 0) {
+        filtered = noRepeatOpponents;
+      }
+    } else {
+      // Balanced: soft preference
+      if (noRepeatOpponents.length > 0) {
+        filtered = noRepeatOpponents;
+      }
+    }
   }
-  // Keep track of the no-repeat subset for later use in Step 7
-  const noRepeatSet = new Set(noRepeatOpponents);
 
   // Step 5: Filter out combinations violating teammate repetition threshold (>1)
   const nonViolatingTeammate = filtered.filter(
@@ -708,23 +713,21 @@ export function selectPairing(input: PairingInput): PairingResult {
   }
   // else: filtered stays as-is (all exceed matchup repetition)
 
-  // Step 7: Queue-position-first with fairness cap for ALL candidates.
-  // Exclude combinations containing any candidate that has played more than
-  // the pool's minimum + 1. This keeps deviation tight (≤ 2).
-  const minQueuePos = Math.min(...filtered.map(c => c.earliestQueuePosition));
+  // Step 7: Mode-specific scoring
+  let bestByEncounters: TeamCombination[];
 
+  // Fairness cap applies to ALL modes (open play = equal court time for everyone)
   const poolMatchCounts = pool.map(c => c.matchesPlayed ?? 0);
   const sortedCounts = [...poolMatchCounts].sort((a, b) => a - b);
   const minPoolMatches = sortedCounts[0];
   const medianPoolMatches = sortedCounts[Math.floor(sortedCounts.length / 2)];
   const maxAllowedMatches = Math.max(minPoolMatches + 1, medianPoolMatches);
 
-  // Build set of over-played candidate IDs (includes pair-specific check)
+  // Build set of over-played candidate IDs
   const overPlayedIds = new Set(
     pool.filter(c => {
       const matches = c.matchesPlayed ?? 0;
       if (matches > maxAllowedMatches) return true;
-      // Pairs cap more aggressively: at minPoolMatches + 1 (since they cycle faster)
       if (c.isPair && matches >= maxAllowedMatches) return true;
       return false;
     }).map(c => c.playerId)
@@ -742,7 +745,7 @@ export function selectPairing(input: PairingInput): PairingResult {
     fairFiltered = filtered;
   }
 
-  // Among fair combos, prefer those containing underplayed candidates (min matches in pool)
+  // Prefer underplayed candidates
   const underplayedIds = new Set(
     pool.filter(c => (c.matchesPlayed ?? 0) === minPoolMatches).map(c => c.playerId)
   );
@@ -751,41 +754,49 @@ export function selectPairing(input: PairingInput): PairingResult {
     return allIds.some(id => underplayedIds.has(id));
   });
 
-  // Within underplayed-preferred combos, further prefer no-repeat opponents
-  let fairAndFresh: TeamCombination[];
-  if (withUnderplayed.length > 0) {
-    const freshUnderplayed = withUnderplayed.filter(c => noRepeatSet.has(c));
-    fairAndFresh = freshUnderplayed.length > 0 ? freshUnderplayed : withUnderplayed;
+  if (pairingMode === 'competitive') {
+    // COMPETITIVE: Skill gap is primary, no encounter preference
+    const pool2 = withUnderplayed.length > 0 ? withUnderplayed : fairFiltered;
+    const minSkillGap = Math.min(...pool2.map(c => c.skillGap));
+    const bestBySkillGap = pool2.filter(c => c.skillGap === minSkillGap);
+    const minQP = Math.min(...bestBySkillGap.map(c => c.earliestQueuePosition));
+    bestByEncounters = bestBySkillGap.filter(c => c.earliestQueuePosition === minQP);
   } else {
-    const freshFair = fairFiltered.filter(c => noRepeatSet.has(c));
-    fairAndFresh = freshFair.length > 0 ? freshFair : fairFiltered;
+    // CASUAL & BALANCED: Fairness + no-repeat soft preference + skill gap
+    let fairAndFresh: TeamCombination[];
+    if (withUnderplayed.length > 0) {
+      const freshUnderplayed = withUnderplayed.filter(c => noRepeatSet.has(c));
+      fairAndFresh = freshUnderplayed.length > 0 ? freshUnderplayed : withUnderplayed;
+    } else {
+      const freshFair = fairFiltered.filter(c => noRepeatSet.has(c));
+      fairAndFresh = freshFair.length > 0 ? freshFair : fairFiltered;
+    }
+
+    let bestByQueuePos: TeamCombination[];
+    if (fairAndFresh.length > 0) {
+      bestByQueuePos = fairAndFresh;
+    } else {
+      const minQP = Math.min(...fairFiltered.map(c => c.earliestQueuePosition));
+      bestByQueuePos = fairFiltered.filter(c => c.earliestQueuePosition === minQP);
+    }
+
+    // Among selected combos, pick the best skill gap
+    const minSkillGap = Math.min(...bestByQueuePos.map(c => c.skillGap));
+    const bestBySkillGap = bestByQueuePos.filter(c => c.skillGap === minSkillGap);
+
+    // Break ties by fewest prior encounters
+    const minEnc = Math.min(...bestBySkillGap.map(c => (c as any).encounterCount ?? 0));
+    bestByEncounters = bestBySkillGap.filter(c => ((c as any).encounterCount ?? 0) === minEnc);
   }
-
-  let bestByQueuePos: TeamCombination[];
-  if (fairAndFresh.length > 0) {
-    bestByQueuePos = fairAndFresh;
-  } else {
-    // Fallback: prefer earliest queue position
-    const minQP = Math.min(...fairFiltered.map(c => c.earliestQueuePosition));
-    bestByQueuePos = fairFiltered.filter(c => c.earliestQueuePosition === minQP);
-  }
-
-  // Among selected combos, pick the best skill gap
-  const minSkillGap = Math.min(...bestByQueuePos.map(c => c.skillGap));
-  const bestBySkillGap = bestByQueuePos.filter(c => c.skillGap === minSkillGap);
-
-  // Then break ties by fewest prior encounters (opponent variety)
-  const minEncounters = Math.min(...bestBySkillGap.map(c => (c as any).encounterCount ?? 0));
-  const bestByEncounters = bestBySkillGap.filter(c => ((c as any).encounterCount ?? 0) === minEncounters);
 
   // Step 7c: Break ties by highest diversity bonus (descending, higher is better)
   // Compute diversity bonus ONLY for the finalists (deferred from Step 3 for performance)
   let bestByDiversity: TeamCombination[];
-  if (pairingMode === 'queue' || !sessionId || bestBySkillGap.length <= 1) {
-    bestByDiversity = bestBySkillGap;
+  if (pairingMode === 'queue' || pairingMode === 'competitive' || !sessionId || bestByEncounters.length <= 1) {
+    bestByDiversity = bestByEncounters;
   } else {
     // Compute diversity bonus for each finalist
-    for (const combo of bestBySkillGap) {
+    for (const combo of bestByEncounters) {
       const expandedPlayerIds: string[] = [];
       const allPlayerIds = [...new Set([...combo.team1, ...combo.team2])];
       for (const pid of allPlayerIds) {
@@ -799,12 +810,12 @@ export function selectPairing(input: PairingInput): PairingResult {
       combo.diversityBonus = calculateDiversityBonus(expandedPlayerIds, sessionId);
     }
 
-    const allBonusesZero = bestBySkillGap.every(c => c.diversityBonus === 0);
+    const allBonusesZero = bestByEncounters.every(c => c.diversityBonus === 0);
     if (allBonusesZero) {
-      bestByDiversity = bestBySkillGap;
+      bestByDiversity = bestByEncounters;
     } else {
-      const maxDiversityBonus = Math.max(...bestBySkillGap.map(c => c.diversityBonus));
-      bestByDiversity = bestBySkillGap.filter(c => c.diversityBonus === maxDiversityBonus);
+      const maxDiversityBonus = Math.max(...bestByEncounters.map(c => c.diversityBonus));
+      bestByDiversity = bestByEncounters.filter(c => c.diversityBonus === maxDiversityBonus);
     }
   }
 

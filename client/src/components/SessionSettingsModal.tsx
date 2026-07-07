@@ -35,7 +35,7 @@ function SessionSettingsModal({
   const [courtCount, setCourtCount] = useState(initialSettings.courtCount);
   const [sessionDurationHours, setSessionDurationHours] = useState(4);
   const [gameMode, setGameMode] = useState<GameMode>('doubles');
-  const [matchingMode, setMatchingMode] = useState<MatchingMode>('smart');
+  const [matchingMode, setMatchingMode] = useState<MatchingMode>('balanced');
 
   const [playerName, setPlayerName] = useState('');
   const [playerStarRating, setPlayerStarRating] = useState<StarRating>(3);
@@ -420,35 +420,72 @@ function SessionSettingsModal({
             </select>
           </div>
 
-          {/* Matching Mode */}
+          {/* Matching Style */}
           <div style={{ marginBottom: '1.25rem' }}>
             <label
-              htmlFor="settings-matching-mode"
-              style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500, fontSize: '0.9rem', color: '#374151' }}
+              style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600, fontSize: '0.95rem', color: '#374151' }}
             >
-              Matching Mode
+              Matching Style
             </label>
-            <select
-              id="settings-matching-mode"
-              value={matchingMode}
-              onChange={(e) => setMatchingMode(e.target.value as MatchingMode)}
-              disabled={submitting}
-              aria-label="Matching mode"
-              style={{
-                width: '100%',
-                padding: '0.5rem',
-                border: '1px solid #d1d5db',
-                borderRadius: '6px',
-                fontSize: '0.95rem',
-                background: '#fff',
-                boxSizing: 'border-box',
-              }}
-            >
-              <option value="smart">Smart Pairing</option>
-              <option value="queue">Queue</option>
-              <option value="tournament">Tournament</option>
-              <option value="skill_courts">Skill Courts</option>
-            </select>
+            <p style={{ margin: '0 0 0.75rem', fontSize: '0.8rem', color: '#6b7280' }}>
+              How players are matched for the next game.
+            </p>
+            <div role="radiogroup" aria-label="Matching style" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {([
+                { value: 'casual', label: 'Casual', badge: null, desc: 'Maximum opponent variety. No repeat matchups.' },
+                { value: 'balanced', label: 'Smart', badge: 'RECOMMENDED', desc: 'Fair play time with skill-balanced teams. Best for most sessions.' },
+                { value: 'competitive', label: 'Competitive', badge: null, desc: 'Pure skill-based matching. Tighter games, repeats allowed.' },
+                { value: 'queue', label: 'Queue', badge: null, desc: 'First come, first served. Simple rotation.' },
+              ] as const).map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setMatchingMode(option.value)}
+                  disabled={submitting}
+                  aria-pressed={matchingMode === option.value}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    padding: '0.75rem 1rem',
+                    border: matchingMode === option.value ? '2px solid var(--color-success)' : '1px solid var(--color-border)',
+                    borderRadius: '8px',
+                    background: matchingMode === option.value ? 'rgba(22, 163, 106, 0.1)' : 'var(--color-surface)',
+                    cursor: submitting ? 'not-allowed' : 'pointer',
+                    textAlign: 'left',
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    transition: 'border-color 0.15s, background 0.15s',
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {matchingMode === option.value && (
+                      <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>✓</span>
+                    )}
+                    <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text-primary)' }}>
+                      {option.label}
+                    </span>
+                    {option.badge && (
+                      <span style={{
+                        fontSize: '0.65rem',
+                        fontWeight: 700,
+                        color: '#fff',
+                        background: 'var(--color-success)',
+                        padding: '0.1rem 0.4rem',
+                        borderRadius: '3px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                      }}>
+                        {option.badge}
+                      </span>
+                    )}
+                  </span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
+                    {option.desc}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Divider */}

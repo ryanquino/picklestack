@@ -67,7 +67,7 @@ export function createSession(name: string, courtCount: number): Session {
     name: name.trim(),
     court_count: courtCount,
     status: 'active',
-    pairing_mode: 'smart',
+    pairing_mode: 'balanced',
     court_name: '',
     session_type: 'open_play',
     game_mode: 'doubles',
@@ -149,7 +149,7 @@ export function endSession(sessionId: string): SessionSummary {
 
 const VALID_SESSION_TYPES: SessionType[] = ['tournament', 'open_play'];
 const VALID_GAME_MODES: GameMode[] = ['doubles', 'singles'];
-const VALID_MATCHING_MODES: MatchingMode[] = ['queue', 'smart', 'tournament', 'skill_courts'];
+const VALID_MATCHING_MODES: MatchingMode[] = ['casual', 'balanced', 'competitive', 'queue'];
 
 // ============================================================
 // Session Settings Validation & Management
@@ -194,7 +194,7 @@ export function validateSessionSettings(
   }
 
   if (!VALID_MATCHING_MODES.includes(settings.matchingMode)) {
-    errors.matchingMode = 'Matching mode must be queue, smart, tournament, or skill_courts';
+    errors.matchingMode = 'Matching mode must be casual, balanced, competitive, or queue';
   }
 
   if (typeof settings.sessionDurationHours !== 'number' || settings.sessionDurationHours < 0.5 || settings.sessionDurationHours > 12) {

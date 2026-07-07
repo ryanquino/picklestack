@@ -43,7 +43,7 @@ describe('Pairing fairness: 20 players, 2 pairs, 50 matches, 2 courts', () => {
         courtName: '',
         sessionType: 'open_play',
         gameMode: 'doubles',
-        matchingMode: 'smart',
+        matchingMode: 'balanced',
         sessionDurationHours: 4,
       });
 
@@ -177,7 +177,7 @@ describe('Pairing fairness: 50 players, 2 pairs, 90 matches, 5 courts', () => {
         courtName: '',
         sessionType: 'open_play',
         gameMode: 'doubles',
-        matchingMode: 'smart',
+        matchingMode: 'balanced',
         sessionDurationHours: 4,
       });
 

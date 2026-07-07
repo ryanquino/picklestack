@@ -59,7 +59,7 @@
   --color-danger: #dc2626;
   --color-text-primary: #1a3a2a;
   --color-text-secondary: #4d7c5a;
-  --color-text-inverse: #1a3a2a;
+  --color-text-inverse: #ffffff;
   --color-border: rgba(34, 120, 69, 0.15);
   --color-accent-green: #10b981;
   --color-accent-orange: #ea580c;
@@ -74,15 +74,14 @@
 [data-theme="light"] .card {
   background: var(--color-surface);
   border-color: var(--color-border);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 [data-theme="light"] .court-card {
-  background: transparent;
-  border-color: var(--color-border);
-  border-left-color: var(--color-border);
-  box-shadow: none;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 [data-theme="light"] .court-card--active {
@@ -552,10 +551,16 @@ a:hover {
 
 /* Card base style */
 .card {
-  background: linear-gradient(135deg, rgba(17, 28, 48, 0.96) 0%, rgba(8, 15, 29, 0.98) 100%);
-  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg, 12px);
   border: 1px solid var(--color-border);
-  box-shadow: 0 12px 30px rgba(2, 6, 23, 0.35);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+[data-theme="dark"] .card {
+  background: linear-gradient(135deg, rgba(17, 28, 48, 0.96) 0%, rgba(8, 15, 29, 0.98) 100%);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 /* Width utilities */
@@ -1430,11 +1435,16 @@ a:hover {
 .queue-item {
   display: flex;
   align-items: center;
-  gap: var(--space-xs);
-  padding: var(--space-xs) var(--space-md);
-  border-bottom: 1px solid var(--color-surface);
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--color-border);
   min-height: 48px;
   position: relative;
+  transition: background-color 0.1s;
+}
+
+.queue-item:hover {
+  background-color: rgba(148, 163, 184, 0.04);
 }
 
 @media (max-width: 767px) {
@@ -1445,20 +1455,31 @@ a:hover {
 }
 
 .queue-item--on-deck {
-  border-left: 4px solid rgba(56,189,248,0.6);
+  border-left: 4px solid var(--color-primary);
+  background: rgba(56, 189, 248, 0.06);
+}
+
+[data-theme="dark"] .queue-item--on-deck {
   background: linear-gradient(135deg, rgba(8,15,29,0.96) 0%, rgba(10,20,34,0.98) 100%);
-  border-color: rgba(56,189,248,0.14);
   animation: cyan-glow 3s ease-in-out infinite;
 }
 
 /* Fixed pair slot styling */
 .queue-item--pair {
   border-left: 4px solid var(--color-primary);
+  background: rgba(56, 189, 248, 0.03);
+}
+
+[data-theme="dark"] .queue-item--pair {
   background: linear-gradient(135deg, rgba(2,6,23,0.6) 0%, rgba(8,15,29,0.95) 100%);
 }
 
 .queue-item--pair.queue-item--on-deck {
   border-left: 4px solid var(--color-primary);
+  background: rgba(56, 189, 248, 0.08);
+}
+
+[data-theme="dark"] .queue-item--pair.queue-item--on-deck {
   background: linear-gradient(135deg, rgba(56,189,248,0.12) 0%, rgba(8,15,29,0.96) 100%);
 }
 
@@ -1673,10 +1694,10 @@ a:hover {
    =========================== */
 
 .court-card {
-  background: linear-gradient(135deg, rgba(17, 28, 48, 0.96) 0%, rgba(7, 11, 22, 0.98) 100%);
+  background: var(--color-surface);
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-border);
-  box-shadow: 0 12px 32px rgba(2, 6, 23, 0.35);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   overflow: hidden;
   border-left: 4px solid var(--color-border);
   transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
@@ -1685,9 +1706,18 @@ a:hover {
   flex-direction: column;
 }
 
+[data-theme="dark"] .court-card {
+  background: linear-gradient(135deg, rgba(17, 28, 48, 0.96) 0%, rgba(7, 11, 22, 0.98) 100%);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
 .court-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 16px 36px rgba(2, 6, 23, 0.45);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="dark"] .court-card:hover {
+  box-shadow: 0 8px 28px rgba(2, 6, 23, 0.45);
 }
 
 .court-card--active {
@@ -2173,9 +2203,10 @@ a:hover {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--space-sm);
-  padding: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
   background-color: var(--color-surface);
   border-top: 1px solid var(--color-border);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 
 @media (min-width: 768px) {
@@ -2195,9 +2226,14 @@ a:hover {
   color: var(--color-text-secondary);
 }
 
+.stats-bar__icon {
+  font-size: 1.1rem;
+}
+
 .stats-bar__value {
-  font-weight: var(--font-semibold);
+  font-weight: var(--font-bold);
   color: var(--color-text-primary);
+  font-size: var(--text-base);
 }
 
 /* ===========================
@@ -2954,21 +2990,23 @@ textarea {
 
 .leaderboard-card {
   overflow: hidden;
+  border-radius: var(--radius-lg, 12px);
 }
 
 .leaderboard-card__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-sm) var(--space-md);
+  padding: var(--space-md) var(--space-lg);
   border-bottom: 1px solid var(--color-border);
 }
 
 .leaderboard-card__title {
   margin: 0;
   font-size: var(--text-base);
-  font-weight: var(--font-semibold);
+  font-weight: var(--font-bold);
   color: var(--color-text-primary);
+  letter-spacing: -0.01em;
 }
 
 .leaderboard-card__toggle {
@@ -3002,27 +3040,32 @@ textarea {
 }
 
 .leaderboard-card__th {
-  padding: var(--space-sm) var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
   text-align: left;
   font-weight: var(--font-semibold);
   color: var(--color-text-secondary);
   font-size: var(--text-xs);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.05em;
   white-space: nowrap;
   border-bottom: 1px solid var(--color-border);
 }
 
 .leaderboard-card__row {
-  border-bottom: 1px solid var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  transition: background-color 0.1s;
 }
 
 .leaderboard-card__row:last-child {
   border-bottom: none;
 }
 
+.leaderboard-card__row:hover {
+  background-color: rgba(148, 163, 184, 0.06);
+}
+
 .leaderboard-card__cell {
-  padding: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
   white-space: nowrap;
 }
 
@@ -3670,6 +3713,14 @@ textarea {
   gap: var(--space-md);
 }
 
+[data-theme="light"] .live-view__queue {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
 .live-view__queue-title {
   margin: 0;
   font-size: var(--text-lg);
@@ -3932,15 +3983,31 @@ textarea {
   font-size: 16px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: var(--color-bg);
+  background: var(--color-surface);
   color: var(--color-text-primary);
   min-height: 44px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .create-session__input:focus {
   outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  border-color: var(--color-success);
+  box-shadow: 0 0 0 3px rgba(22, 163, 106, 0.15);
+}
+
+select.create-session__input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23374151' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 16px;
+  padding-right: 2.5rem;
+  cursor: pointer;
+}
+
+[data-theme="dark"] select.create-session__input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
 }
 
 .create-session__helper {
@@ -4544,9 +4611,6 @@ textarea {
   box-shadow: none;
   border-radius: 0;
 }
-  animation: none;
-  box-shadow: 0 1px 4px rgba(5, 150, 105, 0.08);
-}
 
 [data-theme="light"] .live-view__queue-name {
   color: var(--color-text-primary);
@@ -4631,8 +4695,9 @@ textarea {
 /* Live view court cards */
 [data-theme="light"] .live-view__court-card {
   background: var(--color-surface);
-  border-color: var(--color-border);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 /* Generic dark shadows override */

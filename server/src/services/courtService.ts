@@ -137,19 +137,22 @@ export function startMatch(sessionId: string, courtNumber: number): Match {
   if (gameMode === 'singles') {
     playerIds = selectSinglesPlayers(sessionId, queue, session.pairing_mode);
   } else {
-    // Doubles mode
-    if (session.pairing_mode === 'smart') {
-      const pairingInput = buildPairingInput(sessionId, queue);
-      candidatePool = pairingInput.candidatePool;
-      const result = selectPairing(pairingInput);
-      // Expand pair candidates into their constituent player IDs
+    // Doubles mode — route based on matching mode
+    const matchingMode = session.pairing_mode; // 'casual', 'balanced', 'competitive', or 'queue'
+
+    if (matchingMode === 'queue') {
+      // Pure FIFO — first come first served
+      candidatePool = buildCandidatePool(sessionId, queue, gameMode);
+      const result = selectFifoPairing(candidatePool);
       const team1Expanded = expandTeamPlayerIds(result.team1, candidatePool);
       const team2Expanded = expandTeamPlayerIds(result.team2, candidatePool);
       playerIds = [...team1Expanded, ...team2Expanded];
     } else {
-      candidatePool = buildCandidatePool(sessionId, queue, gameMode);
-      const result = selectFifoPairing(candidatePool);
-      // Expand pair candidates into their constituent player IDs
+      // Smart modes: casual, balanced, competitive — all use selectPairing with different config
+      const pairingInput = buildPairingInput(sessionId, queue);
+      pairingInput.pairingMode = matchingMode as 'casual' | 'balanced' | 'competitive';
+      candidatePool = pairingInput.candidatePool;
+      const result = selectPairing(pairingInput);
       const team1Expanded = expandTeamPlayerIds(result.team1, candidatePool);
       const team2Expanded = expandTeamPlayerIds(result.team2, candidatePool);
       playerIds = [...team1Expanded, ...team2Expanded];

@@ -10,26 +10,26 @@
  * Determines which players are "On Deck" based on queue state, game mode, and matching mode.
  *
  * Rules:
- * - Smart Pairing: first min(N, 8) players (entire candidate pool)
- * - Queue/Tournament/Skill Courts + Doubles: first min(N, 4) players
- * - Queue/Tournament/Skill Courts + Singles: first min(N, 2) players
+ * - Casual/Balanced/Competitive: first min(N, 8) players (entire candidate pool)
+ * - Queue + Doubles: first min(N, 4) players
+ * - Queue + Singles: first min(N, 2) players
  *
  * When the queue has fewer players than needed, all players are returned.
  * The queue is assumed to be sorted by position ascending.
  *
  * @param queue - Array of queue entries sorted by position ascending
  * @param gameMode - 'doubles' or 'singles'
- * @param matchingMode - 'queue', 'smart', 'tournament', or 'skill_courts'
+ * @param matchingMode - 'casual', 'balanced', 'competitive', or 'queue'
  * @returns Array of player IDs that are "On Deck"
  */
 export function getOnDeckPlayerIds(
   queue: { playerId: string; position: number }[],
   gameMode: 'doubles' | 'singles',
-  matchingMode: 'queue' | 'smart' | 'tournament' | 'skill_courts'
+  matchingMode: 'casual' | 'balanced' | 'competitive' | 'queue'
 ): string[] {
   let count: number;
 
-  if (matchingMode === 'smart') {
+  if (matchingMode !== 'queue') {
     count = Math.min(queue.length, 8);
   } else if (gameMode === 'doubles') {
     count = Math.min(queue.length, 4);

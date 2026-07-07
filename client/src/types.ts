@@ -76,7 +76,7 @@ export type SessionType = 'tournament' | 'open_play';
 export type GameMode = 'doubles' | 'singles';
 
 /** Matching mode for player assignment */
-export type MatchingMode = 'queue' | 'smart' | 'tournament' | 'skill_courts';
+export type MatchingMode = 'casual' | 'balanced' | 'competitive' | 'queue';
 
 /** Session settings for configuration */
 export interface SessionSettings {

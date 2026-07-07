@@ -24,13 +24,17 @@ function CreateSession() {
   // Game Settings
   const [sessionType, setSessionType] = useState<SessionType>('open_play');
   const [gameMode, setGameMode] = useState<GameMode>('doubles');
-  const [matchingMode, setMatchingMode] = useState<MatchingMode>('smart');
+  const [matchingMode, setMatchingMode] = useState<MatchingMode>('balanced');
   const [sessionDurationHours, setSessionDurationHours] = useState(4);
 
   // Player Check-In
   const [pendingPlayers, setPendingPlayers] = useState<PendingPlayer[]>([]);
   const [playerNameInput, setPlayerNameInput] = useState('');
   const [playerStarRatingInput, setPlayerStarRatingInput] = useState<StarRating>(3);
+
+  // Bulk Import
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [bulkImportText, setBulkImportText] = useState('');
 
   // Pairing
   const [pendingPairs, setPendingPairs] = useState<PendingPair[]>([]);
@@ -100,6 +104,40 @@ function CreateSession() {
 
   function isPlayerPaired(localId: string): boolean {
     return pendingPairs.some((p) => p.player1LocalId === localId || p.player2LocalId === localId);
+  }
+
+  function handleBulkImport() {
+    const lines = bulkImportText
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+
+    const newPlayers: PendingPlayer[] = [];
+    for (const line of lines) {
+      // Remove leading numbers, dots, dashes (e.g., "1. Player Name" or "- Player Name")
+      const cleaned = line.replace(/^[\d]+[.\-)\s]+/, '').replace(/^[-•]\s*/, '').trim();
+      if (cleaned.length === 0 || cleaned.length > 30) continue;
+
+      // Skip header-like lines
+      if (/^participants/i.test(cleaned) || /^players/i.test(cleaned) || /^names/i.test(cleaned)) continue;
+
+      // Check for duplicates
+      const alreadyExists = pendingPlayers.some(p => p.name.toLowerCase() === cleaned.toLowerCase()) ||
+        newPlayers.some(p => p.name.toLowerCase() === cleaned.toLowerCase());
+      if (alreadyExists) continue;
+
+      newPlayers.push({
+        localId: crypto.randomUUID(),
+        name: cleaned,
+        starRating: 3,
+      });
+    }
+
+    if (newPlayers.length > 0) {
+      setPendingPlayers(prev => [...prev, ...newPlayers]);
+    }
+    setBulkImportText('');
+    setShowBulkImport(false);
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -309,20 +347,64 @@ function CreateSession() {
           </div>
 
           <div className="create-session__field">
-            <label htmlFor="matching-mode">Matching Mode</label>
-            <select
-              id="matching-mode"
-              value={matchingMode}
-              onChange={(e) => setMatchingMode(e.target.value as MatchingMode)}
-              aria-describedby="matching-mode-helper"
-              className="create-session__input"
-            >
-              <option value="smart">Smart Pairing</option>
-              <option value="queue">Queue</option>
-            </select>
-            <p id="matching-mode-helper" className="create-session__helper">
-              Smart Pairing uses skill ratings for balanced matches. Queue uses first-come first-served order.
+            <label>Matching Style</label>
+            <p className="create-session__helper" style={{ marginBottom: '0.75rem' }}>
+              How players are matched for the next game.
             </p>
+            <div role="radiogroup" aria-label="Matching style" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {([
+                { value: 'casual', label: 'Casual', badge: null, desc: 'Maximum opponent variety. No repeat matchups.' },
+                { value: 'balanced', label: 'Smart', badge: 'RECOMMENDED', desc: 'Fair play time with skill-balanced teams. Best for most sessions.' },
+                { value: 'competitive', label: 'Competitive', badge: null, desc: 'Pure skill-based matching. Tighter games, repeats allowed.' },
+                { value: 'queue', label: 'Queue', badge: null, desc: 'First come, first served. Simple rotation.' },
+              ] as const).map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setMatchingMode(option.value)}
+                  aria-pressed={matchingMode === option.value}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    padding: '0.75rem 1rem',
+                    border: matchingMode === option.value ? '2px solid var(--color-success)' : '1px solid var(--color-border)',
+                    borderRadius: '8px',
+                    background: matchingMode === option.value ? 'rgba(22, 163, 106, 0.1)' : 'var(--color-surface)',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    width: '100%',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {matchingMode === option.value && (
+                      <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>✓</span>
+                    )}
+                    <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text-primary)' }}>
+                      {option.label}
+                    </span>
+                    {option.badge && (
+                      <span style={{
+                        fontSize: '0.65rem',
+                        fontWeight: 700,
+                        color: '#fff',
+                        background: 'var(--color-success)',
+                        padding: '0.1rem 0.4rem',
+                        borderRadius: '3px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                      }}>
+                        {option.badge}
+                      </span>
+                    )}
+                  </span>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
+                    {option.desc}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -332,6 +414,25 @@ function CreateSession() {
           <p className="create-session__card-description">
             Add players who are here and ready to play. You can also add more from the dashboard.
           </p>
+
+          {/* Bulk Import Button */}
+          <button
+            type="button"
+            onClick={() => setShowBulkImport(true)}
+            style={{
+              marginBottom: '1rem',
+              padding: '0.5rem 1rem',
+              border: '1px solid #e5e7eb',
+              borderRadius: '6px',
+              background: '#fff',
+              color: '#374151',
+              cursor: 'pointer',
+              fontSize: '0.85rem',
+              fontWeight: 500,
+            }}
+          >
+            📋 Bulk Import Players
+          </button>
 
           <div className="create-session__player-input-row">
             <div className="create-session__field create-session__field--inline">
@@ -389,12 +490,33 @@ function CreateSession() {
                 <li key={player.localId} className="create-session__player-item">
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, cursor: 'pointer' }}>
                     {gameMode === 'doubles' && !isPlayerPaired(player.localId) && (
-                      <input
-                        type="checkbox"
-                        checked={pairSelection.includes(player.localId)}
-                        onChange={() => handleTogglePairSelection(player.localId)}
+                      <span
+                        role="checkbox"
+                        aria-checked={pairSelection.includes(player.localId)}
                         aria-label={`Select ${player.name} for pairing`}
-                      />
+                        tabIndex={0}
+                        onClick={() => handleTogglePairSelection(player.localId)}
+                        onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); handleTogglePairSelection(player.localId); }}}
+                        style={{
+                          width: '18px',
+                          height: '18px',
+                          borderRadius: '4px',
+                          border: pairSelection.includes(player.localId) ? '2px solid #16a34a' : '2px solid #d1d5db',
+                          background: pairSelection.includes(player.localId) ? '#16a34a' : '#fff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          transition: 'all 0.15s',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {pairSelection.includes(player.localId) && (
+                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                            <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                      </span>
                     )}
                     {isPlayerPaired(player.localId) && (
                       <span style={{ fontSize: '0.8rem', color: '#7c3aed' }} aria-label="Paired">🔗</span>
@@ -422,8 +544,17 @@ function CreateSession() {
             <button
               type="button"
               onClick={handleCreatePair}
-              className="create-session__add-btn"
-              style={{ marginTop: '0.5rem' }}
+              style={{
+                marginTop: '0.5rem',
+                padding: '0.5rem 1rem',
+                border: 'none',
+                borderRadius: '6px',
+                background: '#16a34a',
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+              }}
               aria-label="Pair selected players"
             >
               🔗 Pair Selected Players
@@ -465,6 +596,106 @@ function CreateSession() {
           {submitting ? 'Creating...' : 'Create Open Play'}
         </button>
       </form>
+
+      {/* Bulk Import Modal */}
+      {showBulkImport && (
+        <div
+          role="presentation"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowBulkImport(false); }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '1rem',
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bulk-import-title"
+            style={{
+              background: '#fff',
+              borderRadius: '12px',
+              padding: '1.5rem',
+              maxWidth: '480px',
+              width: '100%',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+              <h3 id="bulk-import-title" style={{ margin: 0, fontSize: '1.1rem', color: '#111827' }}>
+                Bulk Import Players
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowBulkImport(false)}
+                aria-label="Close"
+                style={{ border: 'none', background: 'none', fontSize: '1.25rem', cursor: 'pointer', color: '#6b7280' }}
+              >
+                ✕
+              </button>
+            </div>
+            <p style={{ margin: '0 0 0.75rem', fontSize: '0.85rem', color: '#6b7280' }}>
+              Paste a list of player names below, one per line.
+            </p>
+            <textarea
+              value={bulkImportText}
+              onChange={(e) => setBulkImportText(e.target.value)}
+              placeholder={"Example:\n1. Alice\n2. Bob\n3. Charlie\n..."}
+              rows={10}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: '2px solid #d1d5db',
+                borderRadius: '8px',
+                fontSize: '0.9rem',
+                resize: 'vertical',
+                boxSizing: 'border-box',
+                fontFamily: 'inherit',
+              }}
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={handleBulkImport}
+                disabled={bulkImportText.trim().length === 0}
+                style={{
+                  padding: '0.5rem 1.25rem',
+                  border: 'none',
+                  borderRadius: '6px',
+                  background: bulkImportText.trim().length === 0 ? '#9ca3af' : '#16a34a',
+                  color: '#fff',
+                  cursor: bulkImportText.trim().length === 0 ? 'not-allowed' : 'pointer',
+                  fontSize: '0.9rem',
+                  fontWeight: 600,
+                }}
+              >
+                Import Players
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowBulkImport(false)}
+                style={{
+                  padding: '0.5rem 1.25rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  background: '#fff',
+                  color: '#374151',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -438,7 +438,7 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
       onDeckPlayerIds: getOnDeckPlayerIds(
         queue.map(e => ({ playerId: e.playerId, position: e.position })),
         (session.gameMode || 'doubles') as 'doubles' | 'singles',
-        (session.matchingMode || 'smart') as 'queue' | 'smart' | 'tournament' | 'skill_courts'
+        (session.matchingMode || 'balanced') as 'casual' | 'balanced' | 'competitive' | 'queue'
       ),
     });
   } catch (err) {
@@ -775,8 +775,9 @@ app.put('/api/sessions/:sessionId/pairing-mode', (req: Request, res: Response, n
     }
 
     // Validate mode value
-    if (mode !== 'smart' && mode !== 'queue') {
-      throw new ValidationError("Pairing mode must be 'smart' or 'queue'", ['mode']);
+    const validModes = ['casual', 'balanced', 'competitive', 'queue'];
+    if (!validModes.includes(mode)) {
+      throw new ValidationError("Pairing mode must be 'casual', 'balanced', 'competitive', or 'queue'", ['mode']);
     }
 
     updateSessionPairingMode(sessionId, mode, new Date().toISOString());

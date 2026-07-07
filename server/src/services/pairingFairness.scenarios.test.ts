@@ -41,7 +41,7 @@ async function runScenario(config: ScenarioConfig) {
       courtName: '',
       sessionType: 'open_play',
       gameMode: 'doubles',
-      matchingMode: 'smart',
+      matchingMode: 'balanced',
       sessionDurationHours: 4,
     });
 
