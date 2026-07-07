@@ -79,6 +79,14 @@ export function addPlayer(sessionId: string, name: string, starRating?: number):
   });
 }
 
+/** Update a player's star rating */
+export function updatePlayerStarRating(sessionId: string, playerId: string, starRating: number): Promise<void> {
+  return request<void>(`/sessions/${sessionId}/players/${playerId}/star-rating`, {
+    method: 'PUT',
+    body: JSON.stringify({ starRating }),
+  });
+}
+
 /** Remove a player from a session */
 export function removePlayer(sessionId: string, playerId: string): Promise<void> {
   return request<void>(`/sessions/${sessionId}/players/${playerId}`, {

@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { getSessionLive } from '../api';
 import type { PlayerStats, Achievement, LeaderboardEntry, StarRating, GameMode, MatchingMode } from '../types';
 import Leaderboard from '../components/Leaderboard';
+import ScrollToTopButton from '../components/ScrollToTopButton';
 import LeaderboardCard from '../components/LeaderboardCard';
 import PlayerProfileCard from '../components/PlayerProfileCard';
 import LiveSessionHeader from '../components/LiveSessionHeader';
@@ -511,6 +512,7 @@ function LiveView() {
           diversityPercentage={diversity?.[selectedPlayerId] ?? 0}
         />
       )}
+      <ScrollToTopButton />
     </div>
   );
 }

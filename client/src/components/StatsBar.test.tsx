@@ -6,8 +6,7 @@ const defaultProps = {
   totalPlayers: 12,
   matchesPlayed: 8,
   averageWinRate: 52.4,
-  averageRating: 3.72,
-  pairingMode: 'Smart',
+  sessionQualityScore: 75,
 };
 
 describe('StatsBar', () => {
@@ -29,14 +28,24 @@ describe('StatsBar', () => {
       expect(screen.getByText('52%')).toBeInTheDocument();
     });
 
-    it('renders average rating to 1 decimal place', () => {
-      render(<StatsBar {...defaultProps} />);
-      expect(screen.getByText('3.7')).toBeInTheDocument();
+    it('renders Great when quality score >= 70', () => {
+      render(<StatsBar {...defaultProps} sessionQualityScore={75} />);
+      expect(screen.getByText('Great')).toBeInTheDocument();
     });
 
-    it('renders pairing mode label', () => {
-      render(<StatsBar {...defaultProps} />);
-      expect(screen.getByText('Smart')).toBeInTheDocument();
+    it('renders Decent when quality score 40-69', () => {
+      render(<StatsBar {...defaultProps} sessionQualityScore={55} />);
+      expect(screen.getByText('Decent')).toBeInTheDocument();
+    });
+
+    it('renders Lopsided when quality score < 40', () => {
+      render(<StatsBar {...defaultProps} sessionQualityScore={25} />);
+      expect(screen.getByText('Lopsided')).toBeInTheDocument();
+    });
+
+    it('renders N/A when quality score is null', () => {
+      render(<StatsBar {...defaultProps} sessionQualityScore={null} />);
+      expect(screen.getByText('N/A')).toBeInTheDocument();
     });
   });
 
@@ -49,16 +58,6 @@ describe('StatsBar', () => {
     it('rounds win rate down when decimal is < 0.5', () => {
       render(<StatsBar {...defaultProps} averageWinRate={67.4} />);
       expect(screen.getByText('67%')).toBeInTheDocument();
-    });
-
-    it('formats rating with exactly 1 decimal place', () => {
-      render(<StatsBar {...defaultProps} averageRating={4.0} />);
-      expect(screen.getByText('4.0')).toBeInTheDocument();
-    });
-
-    it('truncates rating to 1 decimal place', () => {
-      render(<StatsBar {...defaultProps} averageRating={3.456} />);
-      expect(screen.getByText('3.5')).toBeInTheDocument();
     });
   });
 
@@ -83,14 +82,9 @@ describe('StatsBar', () => {
       expect(screen.getByRole('img', { name: 'Win rate' })).toBeInTheDocument();
     });
 
-    it('renders Rating icon with aria-label', () => {
+    it('renders Match quality icon with aria-label', () => {
       render(<StatsBar {...defaultProps} />);
-      expect(screen.getByRole('img', { name: 'Rating' })).toBeInTheDocument();
-    });
-
-    it('renders Pairing mode icon with aria-label', () => {
-      render(<StatsBar {...defaultProps} />);
-      expect(screen.getByRole('img', { name: 'Pairing mode' })).toBeInTheDocument();
+      expect(screen.getByRole('img', { name: 'Match quality' })).toBeInTheDocument();
     });
   });
 });

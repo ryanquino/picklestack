@@ -33,6 +33,7 @@ interface QueueListProps {
   onRemove: (playerId: string) => Promise<void>;
   onPlayerClick?: (playerId: string) => void;
   onPairChanged?: () => void;
+  onStarRatingChange?: (playerId: string, starRating: number) => void;
 }
 
 /**
@@ -61,15 +62,25 @@ function getOnDeckPlayerIds(
   return new Set(queue.slice(0, count).map((entry) => entry.playerId));
 }
 
-/** Render filled star icons for the given star rating (1-5) */
-function StarRatingIcons({ starRating }: { starRating: number }) {
-  const stars = '★'.repeat(starRating) + '☆'.repeat(5 - starRating);
+/** Render filled star icons for the given star rating (1-5), optionally editable */
+function StarRatingIcons({ starRating, onChangeRating }: { starRating: number; onChangeRating?: (rating: number) => void }) {
   return (
     <span
       className="queue-item__stars"
       aria-label={`${starRating} out of 5 stars`}
     >
-      {stars}
+      {([1, 2, 3, 4, 5] as const).map((star) => (
+        <span
+          key={star}
+          onClick={onChangeRating ? (e) => { e.stopPropagation(); onChangeRating(star); } : undefined}
+          style={{
+            cursor: onChangeRating ? 'pointer' : 'default',
+            color: star <= starRating ? '#f59e0b' : '#d1d5db',
+          }}
+        >
+          ★
+        </span>
+      ))}
     </span>
   );
 }
@@ -94,7 +105,7 @@ function StreakBadge({ streak }: { streak: number }) {
   );
 }
 
-function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'smart', diversity, waitEstimates, onMoveUp, onMoveDown, onRemove, onPlayerClick, onPairChanged }: QueueListProps) {
+function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'balanced', diversity, waitEstimates, onMoveUp, onMoveDown, onRemove, onPlayerClick, onPairChanged, onStarRatingChange }: QueueListProps) {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
   const [pairModalPlayerId, setPairModalPlayerId] = useState<string | null>(null);
@@ -191,6 +202,9 @@ function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'sma
                 <div className="avatar-queue__detail">
                   <div className="avatar-queue__stats">
                     <span>{wins}W-{losses}L</span>
+                    {entry.starRating && (
+                      <StarRatingIcons starRating={entry.starRating} />
+                    )}
                     {diversity && diversity[entry.playerId] !== undefined && (
                       <span>{diversity[entry.playerId]}% div</span>
                     )}

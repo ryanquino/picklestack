@@ -78,19 +78,6 @@ function SessionHeader({
 
         <button
           type="button"
-          className={`session-header__btn session-header__btn--pairing${pairingMode === 'smart' ? ' session-header__btn--active' : ''}`}
-          onClick={onTogglePairingMode}
-          aria-label={`Pairing mode: ${pairingMode === 'smart' ? 'Smart' : 'Queue'}. Click to toggle.`}
-          title={pairingMode === 'smart' ? 'Smart Pairing' : 'Queue Order'}
-        >
-          <span className="session-header__btn-icon" aria-hidden="true">🧠</span>
-          <span className="session-header__btn-label">
-            {pairingMode === 'smart' ? 'Smart' : 'Queue'}
-          </span>
-        </button>
-
-        <button
-          type="button"
           className="session-header__btn session-header__btn--settings"
           onClick={onOpenSettings}
           aria-label="Session Settings"

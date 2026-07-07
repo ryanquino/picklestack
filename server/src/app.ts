@@ -25,6 +25,8 @@ import {
   getPlayerRatingsBySession,
   getMatchResultsBySession,
   updateSessionPairingMode,
+  getPlayerRating,
+  upsertPlayerRating,
   MatchRow,
 } from './repository';
 import { getDb } from './db';
@@ -1103,6 +1105,46 @@ app.get('/api/sessions/:sessionId/players/:playerId/profile', (req: Request, res
     };
 
     res.json(profile);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * PUT /api/sessions/:sessionId/players/:playerId/star-rating — Update a player's star rating
+ */
+app.put('/api/sessions/:sessionId/players/:playerId/star-rating', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const playerId = req.params.playerId as string;
+    const { starRating } = req.body;
+
+    if (![1, 2, 3, 4, 5].includes(starRating)) {
+      throw new ValidationError('Star rating must be between 1 and 5', ['starRating']);
+    }
+
+    const session = getSessionById(sessionId);
+    if (!session) {
+      throw new NotFoundError('Session not found');
+    }
+
+    const player = getPlayerById(playerId);
+    if (!player || player.session_id !== sessionId) {
+      throw new NotFoundError('Player not found in this session');
+    }
+
+    // Update the star rating (re-initialize preserves matches/wins/losses if already exists)
+    const existing = getPlayerRating(playerId, sessionId);
+    if (existing) {
+      upsertPlayerRating({
+        ...existing,
+        star_rating: starRating,
+      });
+    } else {
+      ratingService.initializePlayerRating(sessionId, playerId, starRating as StarRating);
+    }
+
+    res.json({ success: true, starRating });
   } catch (err) {
     next(err);
   }

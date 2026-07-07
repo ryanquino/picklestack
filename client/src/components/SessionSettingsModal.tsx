@@ -420,22 +420,22 @@ function SessionSettingsModal({
             </select>
           </div>
 
-          {/* Matching Style */}
+          {/* Match Making Mode */}
           <div style={{ marginBottom: '1.25rem' }}>
             <label
-              style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600, fontSize: '0.95rem', color: '#374151' }}
+              style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600, fontSize: '0.95rem', color: 'var(--color-text-primary)' }}
             >
-              Matching Style
+              Match Making Mode
             </label>
-            <p style={{ margin: '0 0 0.75rem', fontSize: '0.8rem', color: '#6b7280' }}>
-              How players are matched for the next game.
+            <p style={{ margin: '0 0 0.75rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+              Controls how the system selects and pairs players for each match. Choose the style that best fits the energy of your session.
             </p>
-            <div role="radiogroup" aria-label="Matching style" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div role="radiogroup" aria-label="Match making mode" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {([
-                { value: 'casual', label: 'Casual', badge: null, desc: 'Maximum opponent variety. No repeat matchups.' },
-                { value: 'balanced', label: 'Smart', badge: 'RECOMMENDED', desc: 'Fair play time with skill-balanced teams. Best for most sessions.' },
-                { value: 'competitive', label: 'Competitive', badge: null, desc: 'Pure skill-based matching. Tighter games, repeats allowed.' },
-                { value: 'queue', label: 'Queue', badge: null, desc: 'First come, first served. Simple rotation.' },
+                { value: 'casual', label: 'Casual', badge: null, desc: 'Every player faces a fresh opponent each round. Perfect for social sessions where variety and fun matter more than competition.' },
+                { value: 'balanced', label: 'Smart', badge: 'RECOMMENDED', desc: 'Equal court time for everyone with skill-balanced teams. The algorithm ensures fair play while keeping matches competitive. Best for most open play sessions.' },
+                { value: 'competitive', label: 'Competitive', badge: null, desc: 'Skill rating drives all matchups. Players are grouped by ability for the tightest possible games. Repeat opponents may occur.' },
+                { value: 'queue', label: 'Queue', badge: null, desc: 'Players are matched in the order they checked in — first in, first on court. Simple and transparent.' },
               ] as const).map((option) => (
                 <button
                   key={option.value}

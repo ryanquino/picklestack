@@ -12,6 +12,7 @@ interface PlayerProfileCardProps {
   playerId: string;
   onClose: () => void;
   diversityPercentage?: number;
+  onStarRatingChange?: (playerId: string, starRating: number) => void;
 }
 
 const ACHIEVEMENT_ICONS: Record<string, string> = {
@@ -63,7 +64,7 @@ function formatMatchScore(team1Score: number | null, team2Score: number | null):
   return `${high}-${low}`;
 }
 
-function PlayerProfileCard({ sessionId, playerId, onClose, diversityPercentage }: PlayerProfileCardProps) {
+function PlayerProfileCard({ sessionId, playerId, onClose, diversityPercentage, onStarRatingChange }: PlayerProfileCardProps) {
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,10 +72,21 @@ function PlayerProfileCard({ sessionId, playerId, onClose, diversityPercentage }
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
+  async function fetchProfile() {
+    try {
+      const data = await getPlayerProfile(sessionId, playerId) as PlayerProfile;
+      setProfile(data);
+      setLoading(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load profile');
+      setLoading(false);
+    }
+  }
+
   // Fetch profile data on mount
   useEffect(() => {
     let cancelled = false;
-    async function fetchProfile() {
+    async function load() {
       try {
         const data = await getPlayerProfile(sessionId, playerId) as PlayerProfile;
         if (!cancelled) {
@@ -88,9 +100,16 @@ function PlayerProfileCard({ sessionId, playerId, onClose, diversityPercentage }
         }
       }
     }
-    fetchProfile();
+    load();
     return () => { cancelled = true; };
   }, [sessionId, playerId]);
+
+  async function handleStarClick(star: number) {
+    if (!onStarRatingChange) return;
+    await onStarRatingChange(playerId, star);
+    // Refetch to show updated rating
+    await fetchProfile();
+  }
 
   // Focus trap and escape key handling
   useEffect(() => {
@@ -207,10 +226,22 @@ function PlayerProfileCard({ sessionId, playerId, onClose, diversityPercentage }
                 {profile.playerName}
               </h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <span style={{ color: '#f59e0b', fontSize: '1.1rem' }}>
-                  <StarDisplay rating={profile.starRating} />
+                <span style={{ fontSize: '1.1rem' }}>
+                  {([1, 2, 3, 4, 5] as const).map((star) => (
+                    <span
+                      key={star}
+                      onClick={onStarRatingChange ? () => handleStarClick(star) : undefined}
+                      style={{
+                        cursor: onStarRatingChange ? 'pointer' : 'default',
+                        color: star <= profile.starRating ? '#f59e0b' : '#d1d5db',
+                        transition: 'color 0.1s',
+                      }}
+                    >
+                      ★
+                    </span>
+                  ))}
                 </span>
-                <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>
+                <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
                   {STAR_RATING_LABELS[profile.starRating]}
                 </span>
               </div>

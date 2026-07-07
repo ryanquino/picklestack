@@ -35,6 +35,7 @@ interface QueuePanelProps {
   onPlayerClick: (playerId: string) => void;
   onCheckIn: (name: string, starRating: StarRating) => Promise<void>;
   onPairChanged?: () => void;
+  onStarRatingChange?: (playerId: string, starRating: number) => void;
 }
 
 function QueuePanel({
@@ -50,6 +51,7 @@ function QueuePanel({
   onPlayerClick,
   onCheckIn,
   onPairChanged,
+  onStarRatingChange,
 }: QueuePanelProps) {
   const [showCheckIn, setShowCheckIn] = useState(false);
 
@@ -96,6 +98,7 @@ function QueuePanel({
           onRemove={onRemove}
           onPlayerClick={onPlayerClick}
           onPairChanged={onPairChanged}
+          onStarRatingChange={onStarRatingChange}
         />
       </div>
 

@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getSession, addPlayer, removePlayer, movePlayer, startMatch, completeMatch, endSession, getLeaderboard, getSessionAchievements, setPairingMode, getFixedPairs } from '../api';
+import { getSession, addPlayer, removePlayer, movePlayer, startMatch, completeMatch, endSession, getLeaderboard, getSessionAchievements, setPairingMode, getFixedPairs, updatePlayerStarRating } from '../api';
 import { addSessionToHistory, updateSessionStatus } from '../sessionHistory';
 import QueuePanel from '../components/QueuePanel';
+import ScrollToTopButton from '../components/ScrollToTopButton';
 import CourtsPanel from '../components/CourtsPanel';
 import StatsBar from '../components/StatsBar';
 import SessionHeader from '../components/SessionHeader';
@@ -259,6 +260,12 @@ function OrganizerDashboard() {
   async function handleCheckIn(name: string, starRating: StarRating) {
     if (!sessionId) return;
     await addPlayer(sessionId, name, starRating);
+    await loadSession();
+  }
+
+  async function handleStarRatingChange(playerId: string, starRating: number) {
+    if (!sessionId) return;
+    await updatePlayerStarRating(sessionId, playerId, starRating);
     await loadSession();
   }
 
@@ -587,7 +594,7 @@ function OrganizerDashboard() {
             queue={enrichedQueue}
             sessionId={sessionId!}
             gameMode={state.session.gameMode || 'doubles'}
-            matchingMode={state.session.matchingMode || 'smart'}
+            matchingMode={state.session.matchingMode || 'balanced'}
             diversity={state.diversity}
             waitEstimates={state.waitEstimates}
             onMoveUp={handleMoveUp}
@@ -596,6 +603,7 @@ function OrganizerDashboard() {
             onPlayerClick={handlePlayerClick}
             onCheckIn={handleCheckIn}
             onPairChanged={loadSession}
+            onStarRatingChange={handleStarRatingChange}
           />
           </ErrorBoundary>
 
@@ -677,12 +685,7 @@ function OrganizerDashboard() {
                 ? (state.playerStats ?? []).reduce((sum, s) => sum + s.winRate, 0) / (state.playerStats ?? []).length
                 : 0
             }
-            averageRating={
-              (state.playerStats ?? []).length > 0
-                ? (state.playerStats ?? []).reduce((sum, s) => sum + s.rating, 0) / (state.playerStats ?? []).length
-                : 0
-            }
-            pairingMode={pairingMode === 'smart' ? 'Smart Pairing' : 'Queue Order'}
+            sessionQualityScore={state.qualityMetrics?.sessionQualityScore ?? null}
           />
 
           {/* Session Settings Button */}
@@ -715,6 +718,7 @@ function OrganizerDashboard() {
           playerId={selectedPlayer.playerId}
           onClose={handleCloseProfile}
           diversityPercentage={state.diversity?.[selectedPlayer.playerId] ?? 0}
+          onStarRatingChange={handleStarRatingChange}
         />
       )}
 
@@ -733,6 +737,7 @@ function OrganizerDashboard() {
           onClose={() => setShowSettingsModal(false)}
         />
       )}
+      <ScrollToTopButton />
     </div>
   );
 }
