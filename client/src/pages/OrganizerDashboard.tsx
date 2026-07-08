@@ -605,6 +605,7 @@ function OrganizerDashboard() {
             onCheckIn={handleCheckIn}
             onPairChanged={loadSession}
             onStarRatingChange={handleStarRatingChange}
+            nextMatchPlayerIds={(state as any).nextMatchPlayerIds}
           />
           </ErrorBoundary>
 

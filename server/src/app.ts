@@ -228,6 +228,7 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response, next: NextFunc
       achievements,
       sessionAwards: computeSessionAwards(sessionId),
       totalCompletedMatches: getCompletedMatchCountBySession(sessionId),
+      nextMatchPlayerIds: courtService.previewNextMatch(sessionId),
       diversity,
       waitEstimates,
       paceMetrics,
@@ -442,6 +443,7 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
       completedMatches,
       totalCompletedMatches: getCompletedMatchCountBySession(sessionId),
       waitEstimates,
+      nextMatchPlayerIds: courtService.previewNextMatch(sessionId),
       onDeckPlayerIds: getOnDeckPlayerIds(
         queue.map(e => ({ playerId: e.playerId, position: e.position })),
         (session.gameMode || 'doubles') as 'doubles' | 'singles',

@@ -29,6 +29,7 @@ interface QueuePanelProps {
   matchingMode: MatchingMode;
   diversity?: Record<string, number>;
   waitEstimates?: Record<string, number | null>;
+  nextMatchPlayerIds?: string[];
   onMoveUp: (playerId: string) => Promise<void>;
   onMoveDown: (playerId: string) => Promise<void>;
   onRemove: (playerId: string) => Promise<void>;
@@ -45,6 +46,7 @@ function QueuePanel({
   matchingMode,
   diversity,
   waitEstimates,
+  nextMatchPlayerIds,
   onMoveUp,
   onMoveDown,
   onRemove,
@@ -93,6 +95,7 @@ function QueuePanel({
           matchingMode={matchingMode}
           diversity={diversity}
           waitEstimates={waitEstimates}
+          nextMatchPlayerIds={nextMatchPlayerIds}
           onMoveUp={onMoveUp}
           onMoveDown={onMoveDown}
           onRemove={onRemove}

@@ -328,6 +328,8 @@ function LiveView() {
 
   // Active session
   const { session, queue, activeMatches, playerStats, achievements, totalCompletedMatches, waitEstimates, diversity } = state.data;
+  const nextMatchPlayerIds: string[] = (state.data as any).nextMatchPlayerIds ?? [];
+  const nextMatchSet = new Set(nextMatchPlayerIds);
   const gameMode = session.gameMode || 'doubles';
   const matchingMode = session.matchingMode || 'balanced';
   const onDeckCount = getOnDeckCount(gameMode, matchingMode, queue.length);
@@ -468,10 +470,14 @@ function LiveView() {
           <p className="empty-state">No players in queue</p>
         ) : (
           <ul className="avatar-queue" aria-label="Queued players">
-            {queue.map((entry, idx) => {
-              const playersPerMatch = gameMode === 'singles' ? 2 : 4;
-              const isNext = idx < playersPerMatch;
-              const isOnDeck = idx < onDeckCount;
+            {[...queue].sort((a, b) => {
+              const aNext = nextMatchSet.has(a.playerId) ? 0 : 1;
+              const bNext = nextMatchSet.has(b.playerId) ? 0 : 1;
+              if (aNext !== bNext) return aNext - bNext;
+              return a.position - b.position;
+            }).map((entry, idx) => {
+              const isNext = nextMatchSet.has(entry.playerId);
+              const isOnDeck = !isNext && idx < onDeckCount;
               const dotIcon = isNext ? '🟢' : isOnDeck ? '🟡' : '⚪';
 
               return (

@@ -697,3 +697,52 @@ export function getCourts(sessionId: string): Court[] {
 
   return courts;
 }
+
+/**
+ * Preview which players would be selected for the next match (dry run).
+ * Does NOT create a match — just runs the pairing algorithm and returns the player IDs.
+ * Returns empty array if not enough players in queue.
+ */
+export function previewNextMatch(sessionId: string): string[] {
+  const session = getSessionById(sessionId);
+  if (!session || session.status === 'ended') return [];
+
+  const gameMode = (session.game_mode || 'doubles') as GameMode;
+  const queue = getQueueBySession(sessionId);
+
+  // Check minimum players
+  const minPlayers = gameMode === 'singles' ? 2 : 4;
+  let totalPlayers = 0;
+  for (const entry of queue) {
+    totalPlayers += entry.pair_id ? 2 : 1;
+  }
+  if (totalPlayers < minPlayers) return [];
+
+  try {
+    if (gameMode === 'singles') {
+      // For singles, just return first 2
+      return queue.slice(0, 2).map(e => e.player_id);
+    }
+
+    const matchingMode = session.pairing_mode;
+
+    if (matchingMode === 'queue') {
+      const candidatePool = buildCandidatePool(sessionId, queue, gameMode);
+      const result = selectFifoPairing(candidatePool);
+      const team1Expanded = expandTeamPlayerIds(result.team1, candidatePool);
+      const team2Expanded = expandTeamPlayerIds(result.team2, candidatePool);
+      return [...team1Expanded, ...team2Expanded];
+    } else {
+      const pairingInput = buildPairingInput(sessionId, queue);
+      pairingInput.pairingMode = matchingMode as 'casual' | 'balanced' | 'competitive';
+      const candidatePool = pairingInput.candidatePool;
+      const result = selectPairing(pairingInput);
+      const team1Expanded = expandTeamPlayerIds(result.team1, candidatePool);
+      const team2Expanded = expandTeamPlayerIds(result.team2, candidatePool);
+      return [...team1Expanded, ...team2Expanded];
+    }
+  } catch {
+    // If algorithm fails (not enough players, etc.), return empty
+    return [];
+  }
+}

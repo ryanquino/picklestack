@@ -49,6 +49,7 @@ interface QueueListProps {
   matchingMode?: MatchingMode;
   diversity?: Record<string, number>;
   waitEstimates?: Record<string, number | null>;
+  nextMatchPlayerIds?: string[];
   onMoveUp: (playerId: string) => Promise<void>;
   onMoveDown: (playerId: string) => Promise<void>;
   onRemove: (playerId: string) => Promise<void>;
@@ -126,7 +127,7 @@ function StreakBadge({ streak }: { streak: number }) {
   );
 }
 
-function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'balanced', diversity, waitEstimates, onMoveUp, onMoveDown, onRemove, onPlayerClick, onPairChanged, onStarRatingChange }: QueueListProps) {
+function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'balanced', diversity, waitEstimates, nextMatchPlayerIds, onMoveUp, onMoveDown, onRemove, onPlayerClick, onPairChanged, onStarRatingChange }: QueueListProps) {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
   const [pairModalPlayerId, setPairModalPlayerId] = useState<string | null>(null);
@@ -141,7 +142,18 @@ function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'bal
     );
   }
 
-  const lastIndex = queue.length - 1;
+  // Pre-computed set of players who will actually be in the next match
+  const nextMatchSet = new Set(nextMatchPlayerIds ?? []);
+
+  // Sort queue so green-dot (next match) players are always on top
+  const sortedQueue = [...queue].sort((a, b) => {
+    const aNext = nextMatchSet.has(a.playerId) ? 0 : 1;
+    const bNext = nextMatchSet.has(b.playerId) ? 0 : 1;
+    if (aNext !== bNext) return aNext - bNext;
+    return a.position - b.position;
+  });
+
+  const lastIndex = sortedQueue.length - 1;
 
   function handleNameClick(playerId: string) {
     if (onPlayerClick) {
@@ -151,10 +163,8 @@ function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'bal
     }
   }
 
-  function getStatusDot(index: number, isOnDeck: boolean): string {
-    // First 4 = next match (green), rest of on-deck pool = yellow, waiting = gray
-    const playersPerMatch = gameMode === 'singles' ? 2 : 4;
-    if (index < playersPerMatch) return '🟢';
+  function getStatusDot(playerId: string, isOnDeck: boolean): string {
+    if (nextMatchSet.has(playerId)) return '🟢';
     if (isOnDeck) return '🟡';
     return '⚪';
   }
@@ -170,7 +180,7 @@ function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'bal
     <div>
       <h2>Queue</h2>
       <ul className="avatar-queue">
-        {queue.map((entry, index) => {
+        {sortedQueue.map((entry, index) => {
           const isOnDeck = onDeckSet.has(entry.playerId);
           const isPair = entry.isPairSlot === true;
           const isExpanded = expandedPlayerId === entry.playerId;
@@ -189,7 +199,7 @@ function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'bal
           const waitLabel = getWaitLabel(index, entry.playerId, isOnDeck);
 
           const playersPerMatch = gameMode === 'singles' ? 2 : 4;
-          const isNextMatch = index < playersPerMatch;
+          const isNextMatch = nextMatchSet.has(entry.playerId);
 
           return (
             <li
@@ -198,7 +208,7 @@ function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'bal
             >
               {/* Row — click name to open profile */}
               <div className="avatar-queue__row">
-                <span className="avatar-queue__dot" aria-hidden="true">{getStatusDot(index, isOnDeck)}</span>
+                <span className="avatar-queue__dot" aria-hidden="true">{getStatusDot(entry.playerId, isOnDeck)}</span>
                 <span
                   className="avatar-queue__name"
                   onClick={() => handleNameClick(entry.playerId)}
