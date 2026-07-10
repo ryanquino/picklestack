@@ -12,7 +12,7 @@ export interface SessionHistoryEntry {
   status: 'active' | 'ended';
 }
 
-const STORAGE_KEY = 'picklestack_session_history';
+const STORAGE_KEY = 'pickld_session_history';
 const MAX_ENTRIES = 10;
 
 export function getSessionHistory(): SessionHistoryEntry[] {

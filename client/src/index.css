@@ -8,7 +8,7 @@
   --color-bg: #0a0f1a;
   --color-surface: #141b2d;
   --color-surface-elevated: #1a2338;
-  --color-primary: #10b981;
+  --color-primary: #84C341;
   --color-success: #22c55e;
   --color-warning: #f59e0b;
   --color-danger: #fb7185;
@@ -53,7 +53,7 @@
   --color-bg: #ecfdf5;
   --color-surface: #ffffff;
   --color-surface-elevated: #f0fdf4;
-  --color-primary: #059669;
+  --color-primary: #6ba832;
   --color-success: #16a34a;
   --color-warning: #ca8a04;
   --color-danger: #dc2626;
@@ -3175,9 +3175,8 @@ textarea {
 }
 
 .navbar__logo {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-md);
+  height: 32px;
+  width: auto;
   object-fit: contain;
 }
 

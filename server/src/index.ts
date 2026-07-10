@@ -22,5 +22,5 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 app.listen(PORT, () => {
-  console.log(`Picklestack server listening on port ${PORT}`);
+  console.log(`Pickld server listening on port ${PORT}`);
 });

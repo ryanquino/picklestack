@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 
 function getTheme(): 'dark' | 'light' {
   try {
-    const stored = localStorage.getItem('picklestack_theme');
+    const stored = localStorage.getItem('pickld_theme');
     if (stored === 'light' || stored === 'dark') return stored;
   } catch { /* ignore */ }
   return 'dark';
@@ -29,7 +29,7 @@ function LiveSessionHeader({
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    try { localStorage.setItem('picklestack_theme', theme); } catch { /* ignore */ }
+    try { localStorage.setItem('pickld_theme', theme); } catch { /* ignore */ }
   }, [theme]);
 
   return (

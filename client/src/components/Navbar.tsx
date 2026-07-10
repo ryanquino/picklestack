@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 
 function getInitialTheme(): 'dark' | 'light' {
   try {
-    const stored = localStorage.getItem('picklestack_theme');
+    const stored = localStorage.getItem('pickld_theme');
     if (stored === 'light' || stored === 'dark') return stored;
   } catch { /* ignore */ }
   return 'dark';
@@ -18,7 +18,7 @@ function Navbar() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    try { localStorage.setItem('picklestack_theme', theme); } catch { /* ignore */ }
+    try { localStorage.setItem('pickld_theme', theme); } catch { /* ignore */ }
   }, [theme]);
 
   // Apply theme on mount
@@ -33,11 +33,7 @@ function Navbar() {
   return (
     <nav className="navbar" aria-label="Main navigation">
       <Link to="/" className="navbar__brand">
-        <img src="/logo.png" alt="Picklestack logo" className="navbar__logo" />
-        <div className="navbar__brand-text">
-          <span className="navbar__app-name">Picklestack</span>
-          <span className="navbar__tagline">Smarter Queues. Better Games.</span>
-        </div>
+        <img src="/logo-light.png" alt="Pickld logo" className="navbar__logo" />
       </Link>
 
       <div className="navbar__links">
