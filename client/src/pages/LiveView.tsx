@@ -8,6 +8,7 @@ import SessionAwards from '../components/SessionAwards';
 import LeaderboardCard from '../components/LeaderboardCard';
 import PlayerProfileCard from '../components/PlayerProfileCard';
 import LiveSessionHeader from '../components/LiveSessionHeader';
+import HighlightsTicker from '../components/HighlightsTicker';
 import Navbar from '../components/Navbar';
 
 /** Live timer that updates every second, displays mm:ss */
@@ -462,6 +463,11 @@ function LiveView() {
           })}
         </div>
       </section>
+
+      {/* Highlights Ticker */}
+      {(state.data as any).highlights && (state.data as any).highlights.length > 0 && (
+        <HighlightsTicker highlights={(state.data as any).highlights} />
+      )}
 
       {/* Queue — full list, clickable names show profile */}
       <section aria-label="Queue" className="live-view__queue">

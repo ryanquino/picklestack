@@ -7,6 +7,7 @@ import * as courtService from './services/courtService';
 import * as matchResultService from './services/matchResultService';
 import * as achievementsService from './services/achievementsService';
 import { computeSessionAwards } from './services/sessionAwardsService';
+import { computeSessionHighlights } from './services/highlightsService';
 import * as ratingService from './services/ratingService';
 import * as fixedPairService from './services/fixedPairService';
 import { computeSessionDiversity } from './services/diversityService';
@@ -227,6 +228,7 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response, next: NextFunc
       playerStats,
       achievements,
       sessionAwards: computeSessionAwards(sessionId),
+      highlights: computeSessionHighlights(sessionId),
       totalCompletedMatches: getCompletedMatchCountBySession(sessionId),
       nextMatchPlayerIds: courtService.previewNextMatch(sessionId),
       diversity,
@@ -440,6 +442,7 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
       playerStats,
       achievements,
       sessionAwards: computeSessionAwards(sessionId),
+      highlights: computeSessionHighlights(sessionId),
       completedMatches,
       totalCompletedMatches: getCompletedMatchCountBySession(sessionId),
       waitEstimates,

@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getSession, addPlayer, removePlayer, movePlayer, startMatch, completeMatch, endSession, getLeaderboard, getSessionAchievements, setPairingMode, getFixedPairs, updatePlayerStarRating } from '../api';
-import { addSessionToHistory, updateSessionStatus } from '../sessionHistory';
+import { addSessionToHistory, updateSessionStatus, removeSessionFromHistory } from '../sessionHistory';
 import QueuePanel from '../components/QueuePanel';
 import ScrollToTopButton from '../components/ScrollToTopButton';
+import HighlightsTicker from '../components/HighlightsTicker';
 import CourtsPanel from '../components/CourtsPanel';
 import StatsBar from '../components/StatsBar';
 import SessionHeader from '../components/SessionHeader';
@@ -113,6 +114,7 @@ interface SessionState {
   qualityMetrics?: SessionQualityMetrics;
   diversity?: Record<string, number>;
   waitEstimates?: Record<string, number | null>;
+  highlights?: Array<{ id: string; emoji: string; text: string; timestamp: string }>;
 }
 
 interface AchievementNotificationItem {
@@ -307,7 +309,7 @@ function OrganizerDashboard() {
     );
     if (!confirmed) return;
     await endSession(sessionId);
-    updateSessionStatus(sessionId, 'ended');
+    removeSessionFromHistory(sessionId);
     await loadSession();
   }
 
@@ -588,6 +590,11 @@ function OrganizerDashboard() {
             onPlayerClick={handlePlayerClick}
           />
           </ErrorBoundary>
+
+          {/* Highlights ticker */}
+          {state.highlights && state.highlights.length > 0 && (
+            <HighlightsTicker highlights={state.highlights} />
+          )}
 
           {/* Queue second */}
           <ErrorBoundary sectionName="Queue">
