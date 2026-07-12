@@ -24,7 +24,7 @@ function CreateSession() {
   // Game Settings
   const [sessionType, setSessionType] = useState<SessionType>('open_play');
   const [gameMode, setGameMode] = useState<GameMode>('doubles');
-  const [matchingMode, setMatchingMode] = useState<MatchingMode>('balanced');
+  const [matchingMode, setMatchingMode] = useState<MatchingMode>('casual');
   const [sessionDurationHours, setSessionDurationHours] = useState(4);
 
   // Player Check-In
@@ -187,13 +187,33 @@ function CreateSession() {
         sessionDurationHours,
       });
 
-      // 3. Check in all pending players that are checked in (collect failures, don't abort)
+      // 3. Add all players — checked-in go to queue (shuffled), others go to bench
       const failures: string[] = [];
       const localIdToServerId = new Map<string, string>();
       const checkedInPlayers = pendingPlayers.filter((p) => p.checkedIn);
-      for (const player of checkedInPlayers) {
+      const benchPlayersList = pendingPlayers.filter((p) => !p.checkedIn);
+
+      // Shuffle checked-in players for random initial queue order
+      const shuffled = [...checkedInPlayers];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+
+      // Checked-in players go directly to queue in shuffled order
+      for (const player of shuffled) {
         try {
           const created = await addPlayer(session.id, player.name, player.starRating);
+          localIdToServerId.set(player.localId, created.id);
+        } catch {
+          failures.push(player.name);
+        }
+      }
+
+      // Non-checked-in players go to bench (skipQueue)
+      for (const player of benchPlayersList) {
+        try {
+          const created = await addPlayer(session.id, player.name, player.starRating, true);
           localIdToServerId.set(player.localId, created.id);
         } catch {
           failures.push(player.name);
@@ -379,7 +399,6 @@ function CreateSession() {
                 { value: 'casual', label: 'Casual', badge: null, desc: 'Every player faces a fresh opponent each round. Perfect for social sessions where variety and fun matter more than competition.' },
                 { value: 'balanced', label: 'Smart', badge: 'RECOMMENDED', desc: 'Equal court time for everyone with skill-balanced teams. The algorithm ensures fair play while keeping matches competitive. Best for most open play sessions.' },
                 { value: 'competitive', label: 'Competitive', badge: null, desc: 'Skill rating drives all matchups. Players are grouped by ability for the tightest possible games. Repeat opponents may occur.' },
-                { value: 'queue', label: 'Queue', badge: null, desc: 'Players are matched in the order they checked in — first in, first on court. Simple and transparent.' },
               ] as const).map((option) => (
                 <button
                   key={option.value}

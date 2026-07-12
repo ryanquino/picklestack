@@ -18,6 +18,7 @@ import {
   getFixedPairById,
   getFixedPairByPlayerId,
   getPlayerRatingsBySession,
+  getQueueEntryByPlayerId,
   MatchRow,
   QueueEntryRow,
 } from '../repository';
@@ -243,20 +244,11 @@ export function replacePlayerInMatch(sessionId: string, courtNumber: number, old
     deleteQueueEntry(newPlayerId);
   }
 
-  // Put the replaced player at the bottom of the queue.
-  // This preserves the player's existence in the session and moves them into the queue.
+  // Remove the replaced player from queue if present (they go to bench)
   const oldQueueEntry = getQueueBySession(sessionId).find((q) => q.player_id === oldPlayerId);
   if (oldQueueEntry) {
     deleteQueueEntry(oldPlayerId);
   }
-
-  const updatedQueue = getQueueBySession(sessionId);
-  createQueueEntry({
-    player_id: oldPlayerId,
-    session_id: sessionId,
-    position: updatedQueue.length,
-    pair_id: null,
-  });
 
   // Re-index queue positions to keep them sequential
   const finalQueue = getQueueBySession(sessionId);
@@ -637,6 +629,13 @@ export function completeMatch(sessionId: string, courtNumber: number, options?: 
         continue;
       }
 
+      // Safety: skip if anchor player already in queue
+      const anchorEntry = getQueueEntryByPlayerId(fixedPair.player1_id);
+      if (anchorEntry) {
+        reinsertedPairIds.add(fixedPair.id);
+        continue;
+      }
+
       // Re-insert the pair as a single pair slot using player1_id as anchor
       createQueueEntry({
         player_id: fixedPair.player1_id,
@@ -647,6 +646,10 @@ export function completeMatch(sessionId: string, courtNumber: number, options?: 
       nextPosition++; // pair takes 1 queue position like individuals
       reinsertedPairIds.add(fixedPair.id);
     } else {
+      // Safety: skip if player already in queue
+      const existingEntry = getQueueEntryByPlayerId(playerId);
+      if (existingEntry) continue;
+
       // Individual player — insert normally
       createQueueEntry({
         player_id: playerId,

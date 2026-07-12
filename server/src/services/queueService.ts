@@ -10,10 +10,8 @@ import {
   getQueueEntryByPlayerId,
   updateQueueEntryPosition,
   deleteQueueEntry,
-  deletePlayer,
   getPlayerById,
   getActiveMatchesBySession,
-  deletePlayerRating,
   getFixedPairById,
   getFixedPairByPlayerId,
   getQueueEntryByPairId,
@@ -112,6 +110,95 @@ export function addPlayer(sessionId: string, playerName: string): Player {
 
   // 7. Return the created player
   return toPlayer(playerRow);
+}
+
+/**
+ * Adds a player to a session WITHOUT adding them to the queue (bench player).
+ * Same validation as addPlayer but skips queue entry creation.
+ */
+export function addPlayerToSession(sessionId: string, playerName: string): Player {
+  const session = getSessionById(sessionId);
+  if (!session) {
+    throw new ValidationError('Session not found', ['sessionId']);
+  }
+  if (session.status === 'ended') {
+    throw new ValidationError('Session has ended, no new check-ins accepted', ['sessionId']);
+  }
+
+  validatePlayerName(playerName);
+
+  const existing = findPlayerByNameCaseInsensitive(sessionId, playerName);
+  if (existing) {
+    throw new ValidationError('A player with this name already exists in the session', ['playerName']);
+  }
+
+  const now = new Date().toISOString();
+  const playerRow = createPlayer({
+    id: uuidv4(),
+    session_id: sessionId,
+    name: playerName,
+    checked_in_at: now,
+  });
+
+  return toPlayer(playerRow);
+}
+
+/**
+ * Moves an existing bench player (not in queue) into the queue at the end.
+ * If the player is part of a fixed pair and their partner is also not in the queue,
+ * both are added as a single pair slot.
+ */
+export function addPlayerToQueue(sessionId: string, playerId: string): void {
+  const session = getSessionById(sessionId);
+  if (!session) {
+    throw new ValidationError('Session not found', ['sessionId']);
+  }
+  if (session.status === 'ended') {
+    throw new ValidationError('Session has ended', ['sessionId']);
+  }
+
+  const player = getPlayerById(playerId);
+  if (!player || player.session_id !== sessionId) {
+    throw new ValidationError('Player not found in this session', ['playerId']);
+  }
+
+  // Check if already in queue
+  const existingEntry = getQueueEntryByPlayerId(playerId);
+  if (existingEntry) {
+    throw new ValidationError('Player is already in the queue', ['playerId']);
+  }
+
+  const currentQueue = getQueueBySession(sessionId);
+  const position = currentQueue.length;
+
+  // Check if player is part of a fixed pair
+  const fixedPair = getFixedPairByPlayerId(sessionId, playerId);
+  if (fixedPair) {
+    // Check if pair is already in queue (either player's entry with pair_id)
+    const anchorId = fixedPair.player1_id;
+    const anchorInQueue = getQueueEntryByPlayerId(anchorId);
+    const partnerId = fixedPair.player1_id === playerId ? fixedPair.player2_id : fixedPair.player1_id;
+    const partnerInQueue = getQueueEntryByPlayerId(partnerId);
+
+    if (anchorInQueue || partnerInQueue) {
+      // Pair is already represented in queue — skip
+      return;
+    }
+
+    // Add as a pair slot using player1_id as anchor
+    createQueueEntry({
+      player_id: fixedPair.player1_id,
+      session_id: sessionId,
+      position,
+      pair_id: fixedPair.id,
+    });
+  } else {
+    createQueueEntry({
+      player_id: playerId,
+      session_id: sessionId,
+      position,
+    });
+  }
 }
 
 /** Return type for getQueue, includes player name for display */
@@ -216,15 +303,13 @@ export function movePlayer(
 }
 
 /**
- * Removes a player from the session.
+ * Removes a player from the queue (sends them to bench).
  *
  * - If the player is part of a Fixed_Pair, dissolves the pair and places the
  *   remaining partner as an individual queue entry at the original Pair_Slot position
  * - If the player is in the queue, removes their queue entry
- * - If the player is in an active match, the player record is deleted
- *   (the match's player_ids JSON stays as-is, but the player won't be
- *   returned to queue on match completion because they won't exist)
- * - Deletes the player record
+ * - Does NOT delete the player record — they remain in the session (on bench)
+ * - Their stats, ratings, and match history are preserved
  * - Re-numbers remaining queue positions from 0 preserving relative order
  */
 export function removePlayer(sessionId: string, playerId: string): void {
@@ -262,12 +347,6 @@ export function removePlayer(sessionId: string, playerId: string): void {
       deleteQueueEntry(playerId);
     }
   }
-
-  // Delete the player's rating record (FK constraint requires this before player deletion)
-  deletePlayerRating(playerId, sessionId);
-
-  // Delete the player record
-  deletePlayer(playerId);
 
   // Re-number remaining queue positions from 0
   const remainingQueue = getQueueBySession(sessionId);

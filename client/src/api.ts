@@ -72,10 +72,17 @@ export function getSessionLive(sessionId: string): Promise<{
 }
 
 /** Check in a player to a session */
-export function addPlayer(sessionId: string, name: string, starRating?: number): Promise<Player> {
+export function addPlayer(sessionId: string, name: string, starRating?: number, skipQueue?: boolean): Promise<Player> {
   return request<Player>(`/sessions/${sessionId}/players`, {
     method: 'POST',
-    body: JSON.stringify({ name, ...(starRating !== undefined && { starRating }) }),
+    body: JSON.stringify({ name, ...(starRating !== undefined && { starRating }), ...(skipQueue && { skipQueue: true }) }),
+  });
+}
+
+/** Move a bench player into the queue */
+export function joinQueue(sessionId: string, playerId: string): Promise<void> {
+  return request<void>(`/sessions/${sessionId}/players/${playerId}/join-queue`, {
+    method: 'POST',
   });
 }
 

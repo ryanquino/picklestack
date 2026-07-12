@@ -206,17 +206,45 @@ function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'bal
               key={entry.playerId}
               className={`avatar-queue__item${isNextMatch ? ' avatar-queue__item--next' : isOnDeck ? ' avatar-queue__item--ondeck' : ''}`}
             >
-              {/* Row — click name to open profile */}
-              <div className="avatar-queue__row">
+              {/* Row — click row to expand, click name to open profile */}
+              <div
+                className="avatar-queue__row"
+                onClick={() => setExpandedPlayerId(isExpanded ? null : entry.playerId)}
+                style={{ cursor: 'pointer' }}
+              >
                 <span className="avatar-queue__dot" aria-hidden="true">{getStatusDot(entry.playerId, isOnDeck)}</span>
-                <span
-                  className="avatar-queue__name"
-                  onClick={() => handleNameClick(entry.playerId)}
-                >
-                  {isPair && <span className="avatar-queue__pair-icon">🔗</span>}
-                  {displayName}
-                  {streak >= 2 && <span className="avatar-queue__streak">🔥</span>}
-                  {streak <= -2 && <span className="avatar-queue__streak">❄️</span>}
+                <span className="avatar-queue__name-wrapper">
+                  {isPair && entry.partnerPlayerName ? (
+                    <span className="avatar-queue__name" style={{ display: 'inline' }}>
+                      <span className="avatar-queue__pair-icon">🔗</span>
+                      <span
+                        onClick={(e) => { e.stopPropagation(); handleNameClick(entry.playerId); }}
+                        style={{ cursor: 'pointer' }}
+                        className="avatar-queue__name-link"
+                      >
+                        {entry.playerName}
+                      </span>
+                      {' & '}
+                      <span
+                        onClick={(e) => { e.stopPropagation(); handleNameClick(entry.partnerPlayerId!); }}
+                        style={{ cursor: 'pointer' }}
+                        className="avatar-queue__name-link"
+                      >
+                        {entry.partnerPlayerName}
+                      </span>
+                      {streak >= 2 && <span className="avatar-queue__streak">🔥</span>}
+                      {streak <= -2 && <span className="avatar-queue__streak">❄️</span>}
+                    </span>
+                  ) : (
+                    <span
+                      className="avatar-queue__name"
+                      onClick={(e) => { e.stopPropagation(); handleNameClick(entry.playerId); }}
+                    >
+                      {displayName}
+                      {streak >= 2 && <span className="avatar-queue__streak">🔥</span>}
+                      {streak <= -2 && <span className="avatar-queue__streak">❄️</span>}
+                    </span>
+                  )}
                 </span>
                 {entry.starRating && (
                   <span className="avatar-queue__stars" aria-label={`${entry.starRating} stars`}>
@@ -230,7 +258,6 @@ function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'bal
                 <span
                   className="avatar-queue__chevron"
                   aria-hidden="true"
-                  onClick={() => setExpandedPlayerId(isExpanded ? null : entry.playerId)}
                 >
                   {isExpanded ? '▾' : '▸'}
                 </span>

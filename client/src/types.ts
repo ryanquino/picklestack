@@ -37,7 +37,9 @@ export interface FixedPair {
   id: string;
   sessionId: string;
   player1Id: string;
+  player1Name?: string;
   player2Id: string;
+  player2Name?: string;
   createdAt: string;       // ISO date string from API
 }
 

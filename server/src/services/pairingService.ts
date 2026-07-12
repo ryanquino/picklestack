@@ -716,43 +716,51 @@ export function selectPairing(input: PairingInput): PairingResult {
   // Step 7: Mode-specific scoring
   let bestByEncounters: TeamCombination[];
 
-  // Fairness cap applies to ALL modes (open play = equal court time for everyone)
-  const poolMatchCounts = pool.map(c => c.matchesPlayed ?? 0);
-  const sortedCounts = [...poolMatchCounts].sort((a, b) => a - b);
-  const minPoolMatches = sortedCounts[0];
-  const medianPoolMatches = sortedCounts[Math.floor(sortedCounts.length / 2)];
-  const maxAllowedMatches = Math.max(minPoolMatches + 1, medianPoolMatches);
-
-  // Build set of over-played candidate IDs
-  const overPlayedIds = new Set(
-    pool.filter(c => {
-      const matches = c.matchesPlayed ?? 0;
-      if (matches > maxAllowedMatches) return true;
-      if (c.isPair && matches >= maxAllowedMatches) return true;
-      return false;
-    }).map(c => c.playerId)
-  );
-
-  // Filter out combinations containing over-played candidates
+  // Fairness cap — skip for casual mode (queue position handles fairness naturally)
   let fairFiltered: TeamCombination[];
-  if (overPlayedIds.size > 0) {
-    const withoutOverPlayed = filtered.filter(c => {
-      const allIds = [...new Set([...c.team1, ...c.team2])];
-      return !allIds.some(id => overPlayedIds.has(id));
-    });
-    fairFiltered = withoutOverPlayed.length > 0 ? withoutOverPlayed : filtered;
-  } else {
-    fairFiltered = filtered;
-  }
+  let withUnderplayed: TeamCombination[];
 
-  // Prefer underplayed candidates
-  const underplayedIds = new Set(
-    pool.filter(c => (c.matchesPlayed ?? 0) === minPoolMatches).map(c => c.playerId)
-  );
-  const withUnderplayed = fairFiltered.filter(c => {
-    const allIds = [...new Set([...c.team1, ...c.team2])];
-    return allIds.some(id => underplayedIds.has(id));
-  });
+  if (pairingMode === 'casual') {
+    fairFiltered = filtered;
+    withUnderplayed = filtered;
+  } else {
+    // Fairness cap applies to balanced and competitive modes
+    const poolMatchCounts = pool.map(c => c.matchesPlayed ?? 0);
+    const sortedCounts = [...poolMatchCounts].sort((a, b) => a - b);
+    const minPoolMatches = sortedCounts[0];
+    const medianPoolMatches = sortedCounts[Math.floor(sortedCounts.length / 2)];
+    const maxAllowedMatches = Math.max(minPoolMatches + 1, medianPoolMatches);
+
+    // Build set of over-played candidate IDs
+    const overPlayedIds = new Set(
+      pool.filter(c => {
+        const matches = c.matchesPlayed ?? 0;
+        if (matches > maxAllowedMatches) return true;
+        if (c.isPair && matches >= maxAllowedMatches) return true;
+        return false;
+      }).map(c => c.playerId)
+    );
+
+    // Filter out combinations containing over-played candidates
+    if (overPlayedIds.size > 0) {
+      const withoutOverPlayed = filtered.filter(c => {
+        const allIds = [...new Set([...c.team1, ...c.team2])];
+        return !allIds.some(id => overPlayedIds.has(id));
+      });
+      fairFiltered = withoutOverPlayed.length > 0 ? withoutOverPlayed : filtered;
+    } else {
+      fairFiltered = filtered;
+    }
+
+    // Prefer underplayed candidates
+    const underplayedIds = new Set(
+      pool.filter(c => (c.matchesPlayed ?? 0) === minPoolMatches).map(c => c.playerId)
+    );
+    withUnderplayed = fairFiltered.filter(c => {
+      const allIds = [...new Set([...c.team1, ...c.team2])];
+      return allIds.some(id => underplayedIds.has(id));
+    });
+  }
 
   if (pairingMode === 'competitive') {
     // COMPETITIVE: Skill gap is primary, no encounter preference
@@ -761,8 +769,23 @@ export function selectPairing(input: PairingInput): PairingResult {
     const bestBySkillGap = pool2.filter(c => c.skillGap === minSkillGap);
     const minQP = Math.min(...bestBySkillGap.map(c => c.earliestQueuePosition));
     bestByEncounters = bestBySkillGap.filter(c => c.earliestQueuePosition === minQP);
+  } else if (pairingMode === 'casual') {
+    // CASUAL: Queue position is primary (longest waiting first), no skill/diversity
+    let fairAndFresh: TeamCombination[];
+    if (withUnderplayed.length > 0) {
+      const freshUnderplayed = withUnderplayed.filter(c => noRepeatSet.has(c));
+      fairAndFresh = freshUnderplayed.length > 0 ? freshUnderplayed : withUnderplayed;
+    } else {
+      const freshFair = fairFiltered.filter(c => noRepeatSet.has(c));
+      fairAndFresh = freshFair.length > 0 ? freshFair : fairFiltered;
+    }
+
+    // Pick by earliest queue position only (longest waiting = lowest position)
+    const pool2 = fairAndFresh.length > 0 ? fairAndFresh : fairFiltered;
+    const minQP = Math.min(...pool2.map(c => c.earliestQueuePosition));
+    bestByEncounters = pool2.filter(c => c.earliestQueuePosition === minQP);
   } else {
-    // CASUAL & BALANCED: Fairness + no-repeat soft preference + skill gap
+    // BALANCED: Fairness + no-repeat soft preference + skill gap
     let fairAndFresh: TeamCombination[];
     if (withUnderplayed.length > 0) {
       const freshUnderplayed = withUnderplayed.filter(c => noRepeatSet.has(c));
@@ -791,8 +814,9 @@ export function selectPairing(input: PairingInput): PairingResult {
 
   // Step 7c: Break ties by highest diversity bonus (descending, higher is better)
   // Compute diversity bonus ONLY for the finalists (deferred from Step 3 for performance)
+  // Skip for casual mode (queue position is sole criterion) and competitive/queue modes
   let bestByDiversity: TeamCombination[];
-  if (pairingMode === 'queue' || pairingMode === 'competitive' || !sessionId || bestByEncounters.length <= 1) {
+  if (pairingMode === 'queue' || pairingMode === 'competitive' || pairingMode === 'casual' || !sessionId || bestByEncounters.length <= 1) {
     bestByDiversity = bestByEncounters;
   } else {
     // Compute diversity bonus for each finalist

@@ -1735,9 +1735,10 @@ a:hover {
   overflow: hidden;
   border-left: 4px solid var(--color-border);
   transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
-  min-height: 200px;
+  min-height: 280px;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 [data-theme="dark"] .court-card {
@@ -3175,7 +3176,8 @@ textarea {
 }
 
 .navbar__logo {
-  height: 32px;
+  height: 56px;
+  min-height: 56px;
   width: auto;
   object-fit: contain;
 }
@@ -5241,9 +5243,13 @@ select.create-session__input {
   line-height: 1;
 }
 
-.avatar-queue__name {
+.avatar-queue__name-wrapper {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+}
+
+.avatar-queue__name {
   background: none;
   border: none;
   padding: 0;
@@ -5256,9 +5262,19 @@ select.create-session__input {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: inline;
 }
 
 .avatar-queue__name:hover {
+  text-decoration: underline;
+}
+
+.avatar-queue__name-link {
+  font-weight: var(--font-semibold);
+  color: var(--color-text-primary);
+}
+
+.avatar-queue__name-link:hover {
   text-decoration: underline;
 }
 

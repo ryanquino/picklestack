@@ -435,7 +435,6 @@ function SessionSettingsModal({
                 { value: 'casual', label: 'Casual', badge: null, desc: 'Every player faces a fresh opponent each round. Perfect for social sessions where variety and fun matter more than competition.' },
                 { value: 'balanced', label: 'Smart', badge: 'RECOMMENDED', desc: 'Equal court time for everyone with skill-balanced teams. The algorithm ensures fair play while keeping matches competitive. Best for most open play sessions.' },
                 { value: 'competitive', label: 'Competitive', badge: null, desc: 'Skill rating drives all matchups. Players are grouped by ability for the tightest possible games. Repeat opponents may occur.' },
-                { value: 'queue', label: 'Queue', badge: null, desc: 'Players are matched in the order they checked in — first in, first on court. Simple and transparent.' },
               ] as const).map((option) => (
                 <button
                   key={option.value}

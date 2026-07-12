@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import type { StarRating, GameMode, MatchingMode, Achievement } from '../types';
+import type { StarRating, GameMode, MatchingMode, Achievement, FixedPair } from '../types';
+import { dissolveFixedPair } from '../api';
 import CheckInForm from './CheckInForm';
 import QueueList from './QueueList';
 
@@ -30,6 +31,8 @@ interface QueuePanelProps {
   diversity?: Record<string, number>;
   waitEstimates?: Record<string, number | null>;
   nextMatchPlayerIds?: string[];
+  fixedPairs?: FixedPair[];
+  activeMatchPlayerIds?: string[];
   onMoveUp: (playerId: string) => Promise<void>;
   onMoveDown: (playerId: string) => Promise<void>;
   onRemove: (playerId: string) => Promise<void>;
@@ -47,6 +50,8 @@ function QueuePanel({
   diversity,
   waitEstimates,
   nextMatchPlayerIds,
+  fixedPairs,
+  activeMatchPlayerIds,
   onMoveUp,
   onMoveDown,
   onRemove,
@@ -56,6 +61,7 @@ function QueuePanel({
   onStarRatingChange,
 }: QueuePanelProps) {
   const [showCheckIn, setShowCheckIn] = useState(false);
+  const [dissolveConfirmId, setDissolveConfirmId] = useState<string | null>(null);
 
   async function handleCheckIn(name: string, starRating: StarRating) {
     await onCheckIn(name, starRating);
@@ -105,16 +111,82 @@ function QueuePanel({
         />
       </div>
 
-      {onPairChanged && queue.some(e => e.isPairSlot) && (
+      {fixedPairs && fixedPairs.length > 0 && (
         <div className="pair-controls__pairs-compact">
           <span className="pair-controls__section-title">Paired</span>
-          {queue.filter(e => e.isPairSlot && e.pairId).map((entry) => (
-            <span key={entry.pairId} className="pair-controls__pair-chip">
-              🔗 {entry.playerName} & {entry.partnerPlayerName}
-            </span>
-          ))}
+          {fixedPairs.map((pair) => {
+            const inMatch = activeMatchPlayerIds?.includes(pair.player1Id) || activeMatchPlayerIds?.includes(pair.player2Id);
+
+            return (
+              <span
+                key={pair.id}
+                className={`pair-controls__pair-chip${inMatch ? ' pair-controls__pair-chip--disabled' : ''}`}
+                onClick={inMatch ? undefined : () => setDissolveConfirmId(pair.id)}
+                style={{ cursor: inMatch ? 'default' : 'pointer', opacity: inMatch ? 0.5 : 1 }}
+                title={inMatch ? 'Cannot dissolve while in match' : 'Click to manage pair'}
+              >
+                🔗 {pair.player1Name || pair.player1Id} & {pair.player2Name || pair.player2Id}
+              </span>
+            );
+          })}
         </div>
       )}
+
+      {/* Dissolve pair modal */}
+      {dissolveConfirmId && fixedPairs && (() => {
+        const pair = fixedPairs.find(p => p.id === dissolveConfirmId);
+        if (!pair) return null;
+        return (
+          <div className="modal-overlay" onClick={() => setDissolveConfirmId(null)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px', padding: 'var(--space-xl)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
+                <h3 style={{ margin: 0 }}>Manage Pair</h3>
+                <button
+                  onClick={() => setDissolveConfirmId(null)}
+                  style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
+                >✕</button>
+              </div>
+              <p style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-lg)' }}>
+                {pair.player1Name || pair.player1Id} is paired with {pair.player2Name || pair.player2Id}
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)', alignItems: 'center' }}>
+                <button
+                  onClick={async () => {
+                    await dissolveFixedPair(sessionId, pair.id);
+                    setDissolveConfirmId(null);
+                    onPairChanged?.();
+                  }}
+                  style={{
+                    padding: '0.6rem 1.2rem',
+                    border: 'none',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--color-danger)',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: 'var(--text-sm)',
+                  }}
+                >
+                  Dissolve Pair
+                </button>
+                <button
+                  onClick={() => setDissolveConfirmId(null)}
+                  style={{
+                    padding: '0.4rem 1rem',
+                    border: 'none',
+                    background: 'none',
+                    color: 'var(--color-text-secondary)',
+                    cursor: 'pointer',
+                    fontSize: 'var(--text-sm)',
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

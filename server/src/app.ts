@@ -212,6 +212,36 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response, next: NextFunc
     const paceMetrics = computePaceMetrics(sessionId);
     const qualityMetrics = getSessionQualityMetrics(sessionId);
 
+    // Compute bench players (in session but not in queue and not in active match)
+    const allPlayers = getPlayersBySession(sessionId);
+    const queuePlayerIds = new Set<string>();
+    for (const e of queue) {
+      queuePlayerIds.add((e as any).playerId);
+      // For pair slots, also exclude the partner
+      if ((e as any).partnerPlayerId) {
+        queuePlayerIds.add((e as any).partnerPlayerId);
+      }
+    }
+    const activeMatchPlayerIds = new Set<string>();
+    for (const match of activeMatches) {
+      const pids: string[] = JSON.parse(match.player_ids);
+      for (const pid of pids) activeMatchPlayerIds.add(pid);
+    }
+    const statsMap = new Map(playerStats.map(s => [s.playerId, s]));
+    const benchPlayers = allPlayers
+      .filter(p => !queuePlayerIds.has(p.id) && !activeMatchPlayerIds.has(p.id))
+      .map(p => {
+        const stats = statsMap.get(p.id);
+        return {
+          id: p.id,
+          name: p.name,
+          starRating: stats?.starRating ?? 3,
+          wins: stats?.wins ?? 0,
+          losses: stats?.losses ?? 0,
+          matchesPlayed: stats?.matchesPlayed ?? 0,
+        };
+      });
+
     res.json({
       session: {
         ...session,
@@ -229,6 +259,7 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response, next: NextFunc
       achievements,
       sessionAwards: computeSessionAwards(sessionId),
       highlights: computeSessionHighlights(sessionId),
+      benchPlayers,
       totalCompletedMatches: getCompletedMatchCountBySession(sessionId),
       nextMatchPlayerIds: courtService.previewNextMatch(sessionId),
       diversity,
@@ -489,19 +520,39 @@ app.post('/api/sessions/:sessionId/courts/:courtNumber/replace', (req: Request, 
 app.post('/api/sessions/:sessionId/players', (req: Request, res: Response, next: NextFunction) => {
   try {
     const sessionId = req.params.sessionId as string;
-    const { name, starRating } = req.body;
+    const { name, starRating, skipQueue } = req.body;
 
     // Validate starRating if provided
     if (starRating !== undefined && (![1, 2, 3, 4, 5].includes(starRating))) {
       throw new ValidationError('Star rating must be between 1 and 5', ['starRating']);
     }
 
-    const player = queueService.addPlayer(sessionId, name);
+    let player;
+    if (skipQueue) {
+      // Add player to session without adding to queue (bench player)
+      player = queueService.addPlayerToSession(sessionId, name);
+    } else {
+      player = queueService.addPlayer(sessionId, name);
+    }
 
     // Initialize player rating based on star rating
     ratingService.initializePlayerRating(sessionId, player.id, starRating as StarRating | undefined);
 
     res.status(201).json(player);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/sessions/:sessionId/players/:playerId/join-queue — Move a bench player into the queue
+ */
+app.post('/api/sessions/:sessionId/players/:playerId/join-queue', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const playerId = req.params.playerId as string;
+    queueService.addPlayerToQueue(sessionId, playerId);
+    res.status(200).json({ success: true });
   } catch (err) {
     next(err);
   }
@@ -578,7 +629,17 @@ app.get('/api/sessions/:sessionId/pairs', (req: Request, res: Response, next: Ne
   try {
     const sessionId = req.params.sessionId as string;
     const pairs = fixedPairService.getFixedPairsBySession(sessionId);
-    res.status(200).json(pairs);
+    // Enrich with player names
+    const enriched = pairs.map(pair => {
+      const p1 = getPlayerById(pair.player1Id);
+      const p2 = getPlayerById(pair.player2Id);
+      return {
+        ...pair,
+        player1Name: p1 ? p1.name : '(removed)',
+        player2Name: p2 ? p2.name : '(removed)',
+      };
+    });
+    res.status(200).json(enriched);
   } catch (err) {
     next(err);
   }

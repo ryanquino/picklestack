@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getSession, addPlayer, removePlayer, movePlayer, startMatch, completeMatch, endSession, getLeaderboard, getSessionAchievements, setPairingMode, getFixedPairs, updatePlayerStarRating } from '../api';
+import { getSession, addPlayer, removePlayer, movePlayer, startMatch, completeMatch, endSession, getLeaderboard, getSessionAchievements, setPairingMode, getFixedPairs, updatePlayerStarRating, joinQueue } from '../api';
 import { addSessionToHistory, updateSessionStatus, removeSessionFromHistory } from '../sessionHistory';
 import QueuePanel from '../components/QueuePanel';
 import ScrollToTopButton from '../components/ScrollToTopButton';
@@ -114,7 +114,8 @@ interface SessionState {
   qualityMetrics?: SessionQualityMetrics;
   diversity?: Record<string, number>;
   waitEstimates?: Record<string, number | null>;
-  highlights?: Array<{ id: string; emoji: string; text: string; timestamp: string }>;
+  highlights?: Array<{ id: string; emoji: string; text: string; matchNumber: number; timestamp: string }>;
+  benchPlayers?: Array<{ id: string; name: string; starRating: number; wins: number; losses: number; matchesPlayed: number }>;
 }
 
 interface AchievementNotificationItem {
@@ -310,6 +311,12 @@ function OrganizerDashboard() {
     if (!confirmed) return;
     await endSession(sessionId);
     removeSessionFromHistory(sessionId);
+    await loadSession();
+  }
+
+  async function handleJoinQueue(playerId: string) {
+    if (!sessionId) return;
+    await joinQueue(sessionId, playerId);
     await loadSession();
   }
 
@@ -605,6 +612,8 @@ function OrganizerDashboard() {
             matchingMode={state.session.matchingMode || 'balanced'}
             diversity={state.diversity}
             waitEstimates={state.waitEstimates}
+            fixedPairs={fixedPairs}
+            activeMatchPlayerIds={state.activeMatches.flatMap(m => m.playerIds || [])}
             onMoveUp={handleMoveUp}
             onMoveDown={handleMoveDown}
             onRemove={handleRemove}
@@ -615,6 +624,70 @@ function OrganizerDashboard() {
             nextMatchPlayerIds={(state as any).nextMatchPlayerIds}
           />
           </ErrorBoundary>
+
+          {/* Bench Players — not yet in queue */}
+          {state.benchPlayers && state.benchPlayers.length > 0 && (
+            <section className="card" style={{ padding: 'var(--space-lg)' }} aria-label="Bench Players">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
+                <h3 style={{ margin: 0 }}>Bench <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', fontWeight: 'normal' }}>({state.benchPlayers.length})</span></h3>
+                <button
+                  onClick={async () => {
+                    if (!sessionId || !state.benchPlayers) return;
+                    for (const p of state.benchPlayers) {
+                      await joinQueue(sessionId, p.id);
+                    }
+                    await loadSession();
+                  }}
+                  style={{
+                    padding: '0.3rem 0.7rem',
+                    border: '1px solid var(--color-success)',
+                    borderRadius: 'var(--radius-full)',
+                    background: 'transparent',
+                    color: 'var(--color-success)',
+                    cursor: 'pointer',
+                    fontSize: 'var(--text-xs)',
+                    fontWeight: 600,
+                  }}
+                >
+                  Add All to Queue
+                </button>
+              </div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {state.benchPlayers.map((player) => (
+                  <li key={player.id} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: 'var(--space-sm) 0',
+                    borderBottom: '1px solid var(--color-border)',
+                  }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span style={{ fontWeight: 'var(--font-medium)', fontSize: 'var(--text-sm)' }}>{player.name}</span>
+                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>
+                        {'★'.repeat(player.starRating)}{'☆'.repeat(5 - player.starRating)}
+                        {player.matchesPlayed > 0 && ` · ${player.wins}W-${player.losses}L`}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleJoinQueue(player.id)}
+                      style={{
+                        padding: '0.3rem 0.6rem',
+                        border: '1px solid var(--color-success)',
+                        borderRadius: 'var(--radius-full)',
+                        background: 'rgba(34, 197, 94, 0.1)',
+                        color: 'var(--color-success)',
+                        cursor: 'pointer',
+                        fontSize: 'var(--text-xs)',
+                        fontWeight: 600,
+                      }}
+                    >
+                      → Queue
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           {/* Session Pace Card */}
           <section className="organizer-dashboard__pace-card card" style={{ padding: 'var(--space-lg)' }} aria-label="Session Pace">
