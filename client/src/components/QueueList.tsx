@@ -60,11 +60,7 @@ interface QueueListProps {
 
 /**
  * Computes On Deck player IDs based on queue state, game mode, and matching mode.
- *
- * Rules:
- * - Smart Pairing: first min(N, 8) players
- * - Non-smart + Doubles: first min(N, 4) players
- * - Non-smart + Singles: first min(N, 2) players
+ * Matches the actual candidate pool size used by the pairing algorithm.
  */
 function getOnDeckPlayerIds(
   queue: QueueEntry[],
@@ -73,12 +69,13 @@ function getOnDeckPlayerIds(
 ): Set<string> {
   let count: number;
 
-  if (matchingMode !== 'queue') {
-    count = Math.min(queue.length, 8);
-  } else if (gameMode === 'doubles') {
-    count = Math.min(queue.length, 4);
+  if (matchingMode === 'queue') {
+    count = gameMode === 'doubles' ? Math.min(queue.length, 4) : Math.min(queue.length, 2);
+  } else if (matchingMode === 'casual') {
+    count = Math.min(queue.length, 6);
   } else {
-    count = Math.min(queue.length, 2);
+    // balanced, competitive — larger pool
+    count = Math.min(queue.length, 8);
   }
 
   return new Set(queue.slice(0, count).map((entry) => entry.playerId));
@@ -253,7 +250,7 @@ function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'bal
                 )}
                 <span className="avatar-queue__record">{wins}-{losses}</span>
                 <span className={`avatar-queue__wait${isNextMatch ? ' avatar-queue__wait--now' : isOnDeck ? ' avatar-queue__wait--ondeck' : ''}`}>
-                  {entry.queuedAt && entry.queuedAt.length > 0 && (wins + losses) > 0 ? <WaitTimer since={entry.queuedAt} /> : ''}
+                  {entry.queuedAt && entry.queuedAt.length > 0 ? <WaitTimer since={entry.queuedAt} /> : ''}
                 </span>
                 <span
                   className="avatar-queue__chevron"

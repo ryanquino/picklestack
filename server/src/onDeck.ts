@@ -29,12 +29,12 @@ export function getOnDeckPlayerIds(
 ): string[] {
   let count: number;
 
-  if (matchingMode !== 'queue') {
-    count = Math.min(queue.length, 8);
-  } else if (gameMode === 'doubles') {
-    count = Math.min(queue.length, 4);
+  if (matchingMode === 'queue') {
+    count = gameMode === 'doubles' ? Math.min(queue.length, 4) : Math.min(queue.length, 2);
+  } else if (matchingMode === 'casual') {
+    count = Math.min(queue.length, 6);
   } else {
-    count = Math.min(queue.length, 2);
+    count = Math.min(queue.length, 8);
   }
 
   return queue.slice(0, count).map((entry) => entry.playerId);

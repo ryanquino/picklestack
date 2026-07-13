@@ -670,9 +670,20 @@ export function selectPairing(input: PairingInput): PairingResult {
     noRepeatSet = new Set(noRepeatOpponents);
 
     if (pairingMode === 'casual') {
-      // Hard requirement — only allow no-repeat combos (fall back if none exist)
+      // Casual: prefer no-repeat but don't skip long-waiting players
+      // If fresh combos exist that include the earliest queue position players, use those
+      // Otherwise fall back to ALL combos (allow repeat) to avoid starving long-waiters
       if (noRepeatOpponents.length > 0) {
-        filtered = noRepeatOpponents;
+        // Check if any fresh combo includes the earliest queue position candidate
+        const earliestPos = Math.min(...filtered.map(c => c.earliestQueuePosition));
+        const freshWithEarliest = noRepeatOpponents.filter(c => c.earliestQueuePosition === earliestPos);
+        if (freshWithEarliest.length > 0) {
+          filtered = noRepeatOpponents;
+        } else {
+          // No fresh combo includes the longest-waiting player — allow repeats for them
+          // Keep all combos so the longest-waiting player gets picked
+          // (filtered stays as-is, which includes repeat combos)
+        }
       }
     } else {
       // Balanced: soft preference

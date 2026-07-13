@@ -155,13 +155,13 @@ function renderStars(starRating: StarRating): string {
 
 /** Compute on-deck player count based on game mode */
 function getOnDeckCount(gameMode: GameMode, matchingMode: MatchingMode, queueLength: number): number {
-  if (matchingMode !== 'queue') {
-    return Math.min(queueLength, 8);
+  if (matchingMode === 'queue') {
+    return gameMode === 'doubles' ? Math.min(queueLength, 4) : Math.min(queueLength, 2);
   }
-  if (gameMode === 'doubles') {
-    return Math.min(queueLength, 4);
+  if (matchingMode === 'casual') {
+    return Math.min(queueLength, 6);
   }
-  return Math.min(queueLength, 2);
+  return Math.min(queueLength, 8);
 }
 
 function LiveView() {
@@ -505,7 +505,7 @@ function LiveView() {
                   )}
                   <span className="avatar-queue__record">{entry.wins}-{entry.losses}</span>
                   <span className={`avatar-queue__wait${isNext ? ' avatar-queue__wait--now' : isOnDeck ? ' avatar-queue__wait--ondeck' : ''}`}>
-                    {entry.queuedAt && entry.queuedAt.length > 0 && (entry.wins + entry.losses) > 0 && <LiveTimer startedAt={entry.queuedAt} />}
+                    {entry.queuedAt && entry.queuedAt.length > 0 && <LiveTimer startedAt={entry.queuedAt} />}
                   </span>
                 </div>
               </li>
