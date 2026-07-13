@@ -9,6 +9,7 @@ import {
   getPlayersBySession,
   getPlayerRatingsBySession,
   getPairingHistoryBySession,
+  getFixedPairsBySession,
   MatchResultRow,
   MatchRow,
 } from '../repository';
@@ -21,6 +22,7 @@ export interface SessionAward {
   description: string;
   playerId: string;
   playerName: string;
+  partnerName?: string; // If winner is part of a fixed pair
   value: string;
 }
 
@@ -40,6 +42,20 @@ export function computeSessionAwards(sessionId: string): SessionAward[] {
   const playerNameMap = new Map(players.map(p => [p.id, p.name]));
   const awards: SessionAward[] = [];
 
+  // Build pair partner lookup
+  const fixedPairs = getFixedPairsBySession(sessionId);
+  const pairPartnerName = new Map<string, string>();
+  for (const pair of fixedPairs) {
+    const p1Name = playerNameMap.get(pair.player1_id) || '';
+    const p2Name = playerNameMap.get(pair.player2_id) || '';
+    pairPartnerName.set(pair.player1_id, p2Name);
+    pairPartnerName.set(pair.player2_id, p1Name);
+  }
+
+  function getPartnerName(playerId: string): string | undefined {
+    return pairPartnerName.get(playerId) || undefined;
+  }
+
   // 1. MVP — Highest win rate (min 3 matches)
   const mvpEligible = stats.filter(s => s.matchesPlayed >= 3);
   if (mvpEligible.length > 0) {
@@ -51,6 +67,7 @@ export function computeSessionAwards(sessionId: string): SessionAward[] {
       description: 'Highest win rate',
       playerId: mvp.playerId,
       playerName: mvp.playerName,
+      partnerName: getPartnerName(mvp.playerId),
       value: `${mvp.winRate.toFixed(0)}% win rate`,
     });
   }
@@ -68,6 +85,7 @@ export function computeSessionAwards(sessionId: string): SessionAward[] {
         description: 'Highest avg point differential',
         playerId: dominant.playerId,
         playerName: dominant.playerName,
+        partnerName: getPartnerName(dominant.playerId),
         value: `+${avgPD.toFixed(1)} pts diff/game`,
       });
     }
@@ -83,6 +101,7 @@ export function computeSessionAwards(sessionId: string): SessionAward[] {
       description: 'Longest consecutive wins',
       playerId: streakWinners.playerId,
       playerName: playerNameMap.get(streakWinners.playerId) || '',
+      partnerName: getPartnerName(streakWinners.playerId),
       value: `${streakWinners.longest} wins in a row`,
     });
   }
@@ -100,6 +119,7 @@ export function computeSessionAwards(sessionId: string): SessionAward[] {
         description: 'Most court time',
         playerId: ironPlayer.playerId,
         playerName: playerNameMap.get(ironPlayer.playerId) || '',
+        partnerName: getPartnerName(ironPlayer.playerId),
         value: `${mins} min on court`,
       });
     }
@@ -115,6 +135,7 @@ export function computeSessionAwards(sessionId: string): SessionAward[] {
       description: 'Biggest streak turnaround',
       playerId: comebacks.playerId,
       playerName: playerNameMap.get(comebacks.playerId) || '',
+      partnerName: getPartnerName(comebacks.playerId),
       value: `${comebacks.worstStreak}L → ${comebacks.bestStreak}W`,
     });
   }
@@ -131,6 +152,7 @@ export function computeSessionAwards(sessionId: string): SessionAward[] {
         description: 'Most close wins',
         playerId: clutch.playerId,
         playerName: playerNameMap.get(clutch.playerId) || '',
+        partnerName: getPartnerName(clutch.playerId),
         value: `${clutch.count} close wins`,
       });
     }
@@ -147,6 +169,7 @@ export function computeSessionAwards(sessionId: string): SessionAward[] {
       description: 'Fewest losses',
       playerId: unbreakable.playerId,
       playerName: unbreakable.playerName,
+      partnerName: getPartnerName(unbreakable.playerId),
       value: `Only ${unbreakable.losses} loss${unbreakable.losses !== 1 ? 'es' : ''}`,
     });
   }
@@ -163,6 +186,7 @@ export function computeSessionAwards(sessionId: string): SessionAward[] {
         description: 'Best defense',
         playerId: wall.playerId,
         playerName: playerNameMap.get(wall.playerId) || '',
+        partnerName: getPartnerName(wall.playerId),
         value: `${wall.avgAllowed.toFixed(1)} pts allowed/game`,
       });
     }

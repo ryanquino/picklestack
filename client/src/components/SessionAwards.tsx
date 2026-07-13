@@ -5,6 +5,7 @@ interface Award {
   description: string;
   playerId: string;
   playerName: string;
+  partnerName?: string;
   value: string;
 }
 
@@ -24,7 +25,11 @@ function SessionAwards({ awards }: SessionAwardsProps) {
             <span className="session-awards__icon">{award.icon}</span>
             <div className="session-awards__info">
               <span className="session-awards__award-title">{award.title}</span>
-              <span className="session-awards__player">{award.playerName}</span>
+              <span className="session-awards__player">
+                {award.partnerName
+                  ? `${award.playerName} & ${award.partnerName}`
+                  : award.playerName}
+              </span>
               <span className="session-awards__value">{award.value}</span>
             </div>
           </div>

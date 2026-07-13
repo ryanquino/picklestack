@@ -133,11 +133,17 @@ function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'bal
   // Pre-computed set of players who will actually be in the next match
   const nextMatchSet = new Set(nextMatchPlayerIds ?? []);
 
-  // Sort queue so green-dot (next match) players are always on top
+  // Sort queue: green (next match) first, then yellow (on deck), then white
   const sortedQueue = [...queue].sort((a, b) => {
-    const aNext = nextMatchSet.has(a.playerId) ? 0 : 1;
-    const bNext = nextMatchSet.has(b.playerId) ? 0 : 1;
-    if (aNext !== bNext) return aNext - bNext;
+    const aIsNext = nextMatchSet.has(a.playerId);
+    const bIsNext = nextMatchSet.has(b.playerId);
+    const aIsOnDeck = onDeckSet.has(a.playerId);
+    const bIsOnDeck = onDeckSet.has(b.playerId);
+
+    const aPriority = aIsNext ? 0 : aIsOnDeck ? 1 : 2;
+    const bPriority = bIsNext ? 0 : bIsOnDeck ? 1 : 2;
+
+    if (aPriority !== bPriority) return aPriority - bPriority;
     return a.position - b.position;
   });
 

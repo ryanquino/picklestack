@@ -476,9 +476,13 @@ function LiveView() {
         ) : (
           <ul className="avatar-queue" aria-label="Queued players">
             {[...queue].sort((a, b) => {
-              const aNext = nextMatchSet.has(a.playerId) ? 0 : 1;
-              const bNext = nextMatchSet.has(b.playerId) ? 0 : 1;
-              if (aNext !== bNext) return aNext - bNext;
+              const aIsNext = nextMatchSet.has(a.playerId);
+              const bIsNext = nextMatchSet.has(b.playerId);
+              const aIsOnDeck = !aIsNext && a.position >= 4 && a.position < 12;
+              const bIsOnDeck = !bIsNext && b.position >= 4 && b.position < 12;
+              const aPriority = aIsNext ? 0 : aIsOnDeck ? 1 : 2;
+              const bPriority = bIsNext ? 0 : bIsOnDeck ? 1 : 2;
+              if (aPriority !== bPriority) return aPriority - bPriority;
               return a.position - b.position;
             }).map((entry, idx) => {
               const isNext = nextMatchSet.has(entry.playerId);

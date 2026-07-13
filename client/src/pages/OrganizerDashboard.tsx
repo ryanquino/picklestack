@@ -447,20 +447,6 @@ function OrganizerDashboard() {
         />
       )}
 
-      {/* Achievement Notifications */}
-      {notifications.length > 0 && (
-        <section aria-label="Achievement notifications" className="organizer-dashboard__notifications">
-          {notifications.map((n) => (
-            <AchievementNotification
-              key={n.id}
-              achievement={n.achievement}
-              playerName={n.playerName}
-              onDismiss={() => handleDismissNotification(n.id)}
-            />
-          ))}
-        </section>
-      )}
-
       {isEnded && (
         <>
         <Navbar />
