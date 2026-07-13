@@ -432,15 +432,15 @@ function SessionSettingsModal({
             </p>
             <div role="radiogroup" aria-label="Match making mode" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {([
-                { value: 'casual', label: 'Casual', badge: null, desc: 'Every player faces a fresh opponent each round. Perfect for social sessions where variety and fun matter more than competition.' },
-                { value: 'balanced', label: 'Smart', badge: 'RECOMMENDED', desc: 'Equal court time for everyone with skill-balanced teams. The algorithm ensures fair play while keeping matches competitive. Best for most open play sessions.' },
-                { value: 'competitive', label: 'Competitive', badge: null, desc: 'Skill rating drives all matchups. Players are grouped by ability for the tightest possible games. Repeat opponents may occur.' },
+                { value: 'casual', label: 'Casual', badge: null, desc: 'Every player faces a fresh opponent each round. Perfect for social sessions where variety and fun matter more than competition.', disabled: false },
+                { value: 'balanced', label: 'Smart', badge: 'COMING SOON', desc: 'Equal court time for everyone with skill-balanced teams. The algorithm ensures fair play while keeping matches competitive. Best for most open play sessions.', disabled: true },
+                { value: 'competitive', label: 'Competitive', badge: 'COMING SOON', desc: 'Skill rating drives all matchups. Players are grouped by ability for the tightest possible games. Repeat opponents may occur.', disabled: true },
               ] as const).map((option) => (
                 <button
                   key={option.value}
                   type="button"
-                  onClick={() => setMatchingMode(option.value)}
-                  disabled={submitting}
+                  onClick={() => { if (!option.disabled) setMatchingMode(option.value); }}
+                  disabled={submitting || option.disabled}
                   aria-pressed={matchingMode === option.value}
                   style={{
                     display: 'flex',
@@ -450,7 +450,8 @@ function SessionSettingsModal({
                     border: matchingMode === option.value ? '2px solid var(--color-success)' : '1px solid var(--color-border)',
                     borderRadius: '8px',
                     background: matchingMode === option.value ? 'rgba(22, 163, 106, 0.1)' : 'var(--color-surface)',
-                    cursor: submitting ? 'not-allowed' : 'pointer',
+                    cursor: (submitting || option.disabled) ? 'not-allowed' : 'pointer',
+                    opacity: option.disabled ? 0.5 : 1,
                     textAlign: 'left',
                     width: '100%',
                     boxSizing: 'border-box',

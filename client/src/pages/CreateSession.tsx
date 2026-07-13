@@ -397,14 +397,15 @@ function CreateSession() {
             <div role="radiogroup" aria-label="Match making mode" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {([
                 { value: 'casual', label: 'Casual', badge: null, desc: 'Every player faces a fresh opponent each round. Perfect for social sessions where variety and fun matter more than competition.' },
-                { value: 'balanced', label: 'Smart', badge: 'RECOMMENDED', desc: 'Equal court time for everyone with skill-balanced teams. The algorithm ensures fair play while keeping matches competitive. Best for most open play sessions.' },
-                { value: 'competitive', label: 'Competitive', badge: null, desc: 'Skill rating drives all matchups. Players are grouped by ability for the tightest possible games. Repeat opponents may occur.' },
+                { value: 'balanced', label: 'Smart', badge: 'COMING SOON', desc: 'Equal court time for everyone with skill-balanced teams. The algorithm ensures fair play while keeping matches competitive. Best for most open play sessions.', disabled: true },
+                { value: 'competitive', label: 'Competitive', badge: 'COMING SOON', desc: 'Skill rating drives all matchups. Players are grouped by ability for the tightest possible games. Repeat opponents may occur.', disabled: true },
               ] as const).map((option) => (
                 <button
                   key={option.value}
                   type="button"
-                  onClick={() => setMatchingMode(option.value)}
+                  onClick={() => { if (!('disabled' in option && option.disabled)) setMatchingMode(option.value); }}
                   aria-pressed={matchingMode === option.value}
+                  disabled={'disabled' in option && option.disabled}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -413,6 +414,7 @@ function CreateSession() {
                     border: matchingMode === option.value ? '2px solid var(--color-success)' : '1px solid var(--color-border)',
                     borderRadius: '8px',
                     background: matchingMode === option.value ? 'rgba(22, 163, 106, 0.1)' : 'var(--color-surface)',
+                    opacity: 'disabled' in option && option.disabled ? 0.5 : 1,
                     cursor: 'pointer',
                     textAlign: 'left',
                     width: '100%',

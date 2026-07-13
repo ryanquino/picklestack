@@ -480,10 +480,9 @@ function OrganizerDashboard() {
       )}
 
       {/* Leaderboard for ended sessions */}
-      {isEnded && leaderboardEntries.length > 0 && (
+      {isEnded && (state.playerStats ?? []).length > 0 && (
         <section className="organizer-dashboard__leaderboard">
-          <h2>Final Standings</h2>
-          <Leaderboard entries={leaderboardEntries} />
+          <LeaderboardCard playerStats={state.playerStats ?? []} />
         </section>
       )}
 
@@ -752,8 +751,8 @@ function OrganizerDashboard() {
 
           {/* Stats Bar */}
           <StatsBar
-            totalPlayers={state.queue.length}
-            matchesPlayed={state.activeMatches.filter((m) => m.status === 'completed').length + (state.summary?.totalMatchesCompleted ?? 0)}
+            totalPlayers={(state.playerStats ?? []).length || state.queue.length}
+            matchesPlayed={state.totalCompletedMatches ?? 0}
             averageWinRate={
               (state.playerStats ?? []).length > 0
                 ? (state.playerStats ?? []).reduce((sum, s) => sum + s.winRate, 0) / (state.playerStats ?? []).length

@@ -348,8 +348,13 @@ export function removePlayer(sessionId: string, playerId: string): void {
     }
   }
 
-  // Re-number remaining queue positions from 0
+  // Re-number remaining queue positions by wait time (longest waiting = lowest position)
   const remainingQueue = getQueueBySession(sessionId);
+  remainingQueue.sort((a, b) => {
+    const aTime = a.queued_at ? new Date(a.queued_at).getTime() : 0;
+    const bTime = b.queued_at ? new Date(b.queued_at).getTime() : 0;
+    return aTime - bTime;
+  });
   remainingQueue.forEach((entry, index) => {
     if (entry.position !== index) {
       updateQueueEntryPosition(entry.player_id, index);

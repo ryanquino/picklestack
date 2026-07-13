@@ -31,8 +31,8 @@ import { updateMatchPlayers } from '../repository';
 
 type GameMode = 'doubles' | 'singles';
 
-// Configurable casual pool size (default 6, can be overridden for testing)
-let casualPoolSize = 6;
+// Configurable casual pool size (default 8, can be overridden for testing)
+let casualPoolSize = 8;
 export function setCasualPoolSize(size: number) { casualPoolSize = size; }
 export function getCasualPoolSize() { return casualPoolSize; }
 
@@ -141,10 +141,10 @@ export function startMatch(sessionId: string, courtNumber: number): Match {
   let candidatePool: PairingCandidate[] | undefined;
 
   if (gameMode === 'singles') {
-    playerIds = selectSinglesPlayers(sessionId, queue, session.pairing_mode);
+    playerIds = selectSinglesPlayers(sessionId, queue, session.matching_mode);
   } else {
     // Doubles mode — route based on matching mode
-    const matchingMode = session.pairing_mode; // 'casual', 'balanced', 'competitive', or 'queue'
+    const matchingMode = session.matching_mode; // 'casual', 'balanced', 'competitive', or 'queue'
 
     if (matchingMode === 'queue') {
       // Pure FIFO — first come first served
@@ -186,8 +186,13 @@ export function startMatch(sessionId: string, courtNumber: number): Match {
     }
   }
 
-  // 8. Re-number remaining queue positions from 0
+  // 8. Re-number remaining queue positions by wait time (longest waiting = lowest position)
   const remainingQueue = getQueueBySession(sessionId);
+  remainingQueue.sort((a, b) => {
+    const aTime = a.queued_at ? new Date(a.queued_at).getTime() : 0;
+    const bTime = b.queued_at ? new Date(b.queued_at).getTime() : 0;
+    return aTime - bTime; // oldest first
+  });
   remainingQueue.forEach((entry, index) => {
     if (entry.position !== index) {
       updateQueueEntryPosition(entry.player_id, index);
@@ -255,8 +260,13 @@ export function replacePlayerInMatch(sessionId: string, courtNumber: number, old
     deleteQueueEntry(oldPlayerId);
   }
 
-  // Re-index queue positions to keep them sequential
+  // Re-index queue positions by wait time (longest waiting = lowest position)
   const finalQueue = getQueueBySession(sessionId);
+  finalQueue.sort((a, b) => {
+    const aTime = a.queued_at ? new Date(a.queued_at).getTime() : 0;
+    const bTime = b.queued_at ? new Date(b.queued_at).getTime() : 0;
+    return aTime - bTime;
+  });
   finalQueue.forEach((entry, index) => {
     if (entry.position !== index) {
       updateQueueEntryPosition(entry.player_id, index);
@@ -316,7 +326,7 @@ function buildCandidatePool(
   const poolSize = Math.min(queue.length, maxPoolSize);
   const pool = queue.slice(0, poolSize);
 
-  return pool.map((entry): PairingCandidate => {
+  return pool.map((entry, index): PairingCandidate => {
     if (entry.pair_id) {
       // This is a pair slot — look up the pair record and compute combined rating
       const pair = getFixedPairById(entry.pair_id);
@@ -329,7 +339,7 @@ function buildCandidatePool(
         return {
           playerId: entry.player_id,
           rating: combinedRating,
-          queuePosition: entry.position,
+          queuePosition: index,
           isPair: true,
           pairId: entry.pair_id,
           pairedPlayerIds: [pair.player1_id, pair.player2_id],
@@ -342,7 +352,7 @@ function buildCandidatePool(
     return {
       playerId: entry.player_id,
       rating: ratings.get(entry.player_id) ?? 1000,
-      queuePosition: entry.position,
+      queuePosition: index,
       isPair: false,
       pairId: null,
       pairedPlayerIds: null,
@@ -736,7 +746,7 @@ export function previewNextMatch(sessionId: string): string[] {
       return queue.slice(0, 2).map(e => e.player_id);
     }
 
-    const matchingMode = session.pairing_mode;
+    const matchingMode = session.matching_mode;
 
     if (matchingMode === 'queue') {
       const candidatePool = buildCandidatePool(sessionId, queue, gameMode);
@@ -751,7 +761,17 @@ export function previewNextMatch(sessionId: string): string[] {
       const result = selectPairing(pairingInput);
       const team1Expanded = expandTeamPlayerIds(result.team1, candidatePool);
       const team2Expanded = expandTeamPlayerIds(result.team2, candidatePool);
-      return [...team1Expanded, ...team2Expanded];
+      const selectedIds = [...team1Expanded, ...team2Expanded];
+      
+      // Log what was selected for debugging
+      const poolEntryIds = candidatePool.map(c => c.playerId);
+      const queueTop6Ids = queue.slice(0, 6).map(e => e.player_id);
+      console.log('[PREVIEW] Pool entry IDs:', poolEntryIds.map(id => id.slice(0, 8)));
+      console.log('[PREVIEW] Queue top 6 player_ids:', queueTop6Ids.map(id => id.slice(0, 8)));
+      console.log('[PREVIEW] Selected (expanded):', selectedIds.map(id => id.slice(0, 8)));
+      console.log('[PREVIEW] result.team1:', result.team1.map(id => id.slice(0, 8)), 'result.team2:', result.team2.map(id => id.slice(0, 8)));
+      
+      return selectedIds;
     }
   } catch {
     // If algorithm fails (not enough players, etc.), return empty

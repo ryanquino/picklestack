@@ -475,18 +475,9 @@ function LiveView() {
           <p className="empty-state">No players in queue</p>
         ) : (
           <ul className="avatar-queue" aria-label="Queued players">
-            {[...queue].sort((a, b) => {
-              const aIsNext = nextMatchSet.has(a.playerId);
-              const bIsNext = nextMatchSet.has(b.playerId);
-              const aIsOnDeck = !aIsNext && a.position >= 4 && a.position < 12;
-              const bIsOnDeck = !bIsNext && b.position >= 4 && b.position < 12;
-              const aPriority = aIsNext ? 0 : aIsOnDeck ? 1 : 2;
-              const bPriority = bIsNext ? 0 : bIsOnDeck ? 1 : 2;
-              if (aPriority !== bPriority) return aPriority - bPriority;
-              return a.position - b.position;
-            }).map((entry, idx) => {
+            {[...queue].map((entry, idx) => {
               const isNext = nextMatchSet.has(entry.playerId);
-              const isOnDeck = !isNext && entry.position >= 4 && entry.position < 12;
+              const isOnDeck = !isNext && idx < 6;
               const dotIcon = isNext ? '🟢' : isOnDeck ? '🟡' : '⚪';
 
               return (

@@ -131,6 +131,11 @@ export function createFixedPair(sessionId: string, player1Id: string, player2Id:
   const minPosition = Math.min(queueEntry1.position, queueEntry2.position);
   const anchorPlayerId = queueEntry1.position <= queueEntry2.position ? player1Id : player2Id;
 
+  // Preserve the earlier queued_at from the two players
+  const earlierQueuedAt = (queueEntry1.queued_at && queueEntry2.queued_at)
+    ? (queueEntry1.queued_at <= queueEntry2.queued_at ? queueEntry1.queued_at : queueEntry2.queued_at)
+    : (queueEntry1.queued_at || queueEntry2.queued_at || '');
+
   // 7. Remove both individual queue entries
   deleteQueueEntry(player1Id);
   deleteQueueEntry(player2Id);
@@ -147,12 +152,13 @@ export function createFixedPair(sessionId: string, player1Id: string, player2Id:
   };
   repoCreateFixedPair(pairRow);
 
-  // 9. Insert a single pair slot at minPosition with pair_id set
+  // 9. Insert a single pair slot at minPosition with pair_id set, preserving original queued_at
   createQueueEntry({
     player_id: anchorPlayerId,
     session_id: sessionId,
     position: minPosition,
     pair_id: pairId,
+    queued_at: earlierQueuedAt,
   });
 
   // 10. Re-number all queue positions from 0 preserving relative order

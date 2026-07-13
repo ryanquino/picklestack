@@ -152,7 +152,7 @@ export function getQueueEntryByPlayerId(playerId: string): QueueEntryRow | undef
 export function getQueueBySession(sessionId: string): QueueEntryRow[] {
   const db = getDb();
   return db.prepare(
-    'SELECT * FROM queue_entries WHERE session_id = ? ORDER BY position ASC'
+    'SELECT * FROM queue_entries WHERE session_id = ? ORDER BY queued_at ASC'
   ).all(sessionId) as QueueEntryRow[];
 }
 

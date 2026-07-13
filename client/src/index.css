@@ -104,7 +104,7 @@
 }
 
 [data-theme="light"] .court-card__action {
-  background: var(--color-primary);
+  background: var(--color-success);
   color: #ffffff;
 }
 
@@ -2056,7 +2056,7 @@ a:hover {
   width: 100%;
   padding: var(--space-sm) var(--space-md);
   background-color: var(--color-success);
-  color: var(--color-text-inverse);
+  color: #ffffff;
   border: none;
   border-radius: 0 0 var(--radius-md) var(--radius-md);
   font-size: var(--text-base);
@@ -5830,6 +5830,11 @@ h2:has(+ .avatar-queue) {
 
 .highlights-ticker__track:hover {
   animation-play-state: paused;
+}
+
+.highlights-ticker__track--static {
+  animation: none;
+  justify-content: center;
 }
 
 .highlights-ticker__item {

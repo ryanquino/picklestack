@@ -203,7 +203,7 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
 
     // Assertions
     expect(completedMatches).toBeGreaterThanOrEqual(70);
-    expect(maxH2H).toBeLessThanOrEqual(2); // casual should keep H2H low
+    expect(maxH2H).toBeLessThanOrEqual(3); // casual allows some repeats to prioritize wait time
     expect(neverPlayed).toBeLessThanOrEqual(2); // almost everyone should play
     expect(deviation).toBeLessThanOrEqual(6); // reasonable spread given staggered entry
   });

@@ -59,17 +59,24 @@ interface QueueListProps {
 }
 
 /**
- * Computes On Deck player IDs based on queue state, game mode, and matching mode.
- * Shows positions 4-11 (the next candidates after the green/next-match players).
+ * Computes On Deck player IDs — the candidate pool (first 6 positions in queue).
+ * For pairs, includes both the anchor and partner player IDs.
  */
 function getOnDeckPlayerIds(
   queue: QueueEntry[],
   gameMode: GameMode,
   matchingMode: MatchingMode
 ): Set<string> {
-  const start = 4;
-  const end = Math.min(queue.length, 12);
-  return new Set(queue.slice(start, end).map((entry) => entry.playerId));
+  const poolSize = 8;
+  const end = Math.min(queue.length, poolSize);
+  const set = new Set<string>();
+  for (const entry of queue.slice(0, end)) {
+    set.add(entry.playerId);
+    if (entry.isPairSlot && entry.partnerPlayerId) {
+      set.add(entry.partnerPlayerId);
+    }
+  }
+  return set;
 }
 
 /** Render filled star icons for the given star rating (1-5), optionally editable */
@@ -133,19 +140,8 @@ function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'bal
   // Pre-computed set of players who will actually be in the next match
   const nextMatchSet = new Set(nextMatchPlayerIds ?? []);
 
-  // Sort queue: green (next match) first, then yellow (on deck), then white
-  const sortedQueue = [...queue].sort((a, b) => {
-    const aIsNext = nextMatchSet.has(a.playerId);
-    const bIsNext = nextMatchSet.has(b.playerId);
-    const aIsOnDeck = onDeckSet.has(a.playerId);
-    const bIsOnDeck = onDeckSet.has(b.playerId);
-
-    const aPriority = aIsNext ? 0 : aIsOnDeck ? 1 : 2;
-    const bPriority = bIsNext ? 0 : bIsOnDeck ? 1 : 2;
-
-    if (aPriority !== bPriority) return aPriority - bPriority;
-    return a.position - b.position;
-  });
+  // Show queue in exact backend order (no client-side sort)
+  const sortedQueue = [...queue];
 
   const lastIndex = sortedQueue.length - 1;
 
@@ -175,8 +171,8 @@ function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'bal
       <h2>Queue</h2>
       <ul className="avatar-queue">
         {sortedQueue.map((entry, index) => {
-          const isOnDeck = onDeckSet.has(entry.playerId);
           const isPair = entry.isPairSlot === true;
+          const isOnDeck = onDeckSet.has(entry.playerId) || (isPair && entry.partnerPlayerId ? onDeckSet.has(entry.partnerPlayerId!) : false);
           const isExpanded = expandedPlayerId === entry.playerId;
           const streak = entry.streak ?? 0;
           const wins = entry.wins ?? 0;
@@ -193,7 +189,7 @@ function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'bal
           const waitLabel = getWaitLabel(index, entry.playerId, isOnDeck);
 
           const playersPerMatch = gameMode === 'singles' ? 2 : 4;
-          const isNextMatch = nextMatchSet.has(entry.playerId);
+          const isNextMatch = nextMatchSet.has(entry.playerId) || (isPair && entry.partnerPlayerId ? nextMatchSet.has(entry.partnerPlayerId) : false);
 
           return (
             <li
