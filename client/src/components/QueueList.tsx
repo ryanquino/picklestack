@@ -60,25 +60,16 @@ interface QueueListProps {
 
 /**
  * Computes On Deck player IDs based on queue state, game mode, and matching mode.
- * Matches the actual candidate pool size used by the pairing algorithm.
+ * Shows positions 4-11 (the next candidates after the green/next-match players).
  */
 function getOnDeckPlayerIds(
   queue: QueueEntry[],
   gameMode: GameMode,
   matchingMode: MatchingMode
 ): Set<string> {
-  let count: number;
-
-  if (matchingMode === 'queue') {
-    count = gameMode === 'doubles' ? Math.min(queue.length, 4) : Math.min(queue.length, 2);
-  } else if (matchingMode === 'casual') {
-    count = Math.min(queue.length, 6);
-  } else {
-    // balanced, competitive — larger pool
-    count = Math.min(queue.length, 8);
-  }
-
-  return new Set(queue.slice(0, count).map((entry) => entry.playerId));
+  const start = 4;
+  const end = Math.min(queue.length, 12);
+  return new Set(queue.slice(start, end).map((entry) => entry.playerId));
 }
 
 /** Render filled star icons for the given star rating (1-5), optionally editable */

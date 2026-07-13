@@ -635,11 +635,14 @@ a:hover {
   flex: 1;
   min-height: 100vh;
   padding-bottom: 56px; /* space for BottomTabBar on mobile */
+  overflow-x: hidden;
 }
 
 .layout-shell__main {
   flex: 1;
   padding: var(--space-md);
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 /* ===========================

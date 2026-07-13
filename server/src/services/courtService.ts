@@ -31,6 +31,11 @@ import { updateMatchPlayers } from '../repository';
 
 type GameMode = 'doubles' | 'singles';
 
+// Configurable casual pool size (default 6, can be overridden for testing)
+let casualPoolSize = 6;
+export function setCasualPoolSize(size: number) { casualPoolSize = size; }
+export function getCasualPoolSize() { return casualPoolSize; }
+
 /**
  * Converts a MatchRow from the database into a Match domain object.
  */
@@ -292,8 +297,8 @@ function buildCandidatePool(
   if (gameMode === 'singles') {
     maxPoolSize = 4;
   } else if (matchingMode === 'casual') {
-    // Casual: smaller pool to enforce strict FIFO — longest waiting always plays
-    maxPoolSize = 6;
+    // Casual: moderate pool for fresh matchups while prioritizing queue order
+    maxPoolSize = getCasualPoolSize();
   } else {
     // Scale pool size with total players in session for better diversity
     const totalPlayers = getPlayersBySession(sessionId).length;

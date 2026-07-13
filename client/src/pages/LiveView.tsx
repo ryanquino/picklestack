@@ -155,13 +155,8 @@ function renderStars(starRating: StarRating): string {
 
 /** Compute on-deck player count based on game mode */
 function getOnDeckCount(gameMode: GameMode, matchingMode: MatchingMode, queueLength: number): number {
-  if (matchingMode === 'queue') {
-    return gameMode === 'doubles' ? Math.min(queueLength, 4) : Math.min(queueLength, 2);
-  }
-  if (matchingMode === 'casual') {
-    return Math.min(queueLength, 6);
-  }
-  return Math.min(queueLength, 8);
+  // On deck = positions 4-9 (6 players after the next match group)
+  return Math.min(queueLength, 10);
 }
 
 function LiveView() {
@@ -264,11 +259,15 @@ function LiveView() {
             </div>
           </div>
 
-          {/* Final Standings */}
-          {leaderboardEntries.length > 0 && (
+          {/* Session Awards */}
+          {(state.data as any).sessionAwards && (state.data as any).sessionAwards.length > 0 && (
+            <SessionAwards awards={(state.data as any).sessionAwards} />
+          )}
+
+          {/* Leaderboard */}
+          {playerStats.length > 0 && (
             <section aria-label="Final standings">
-              <h2>Final Standings</h2>
-              <Leaderboard entries={leaderboardEntries} />
+              <LeaderboardCard playerStats={playerStats} />
             </section>
           )}
 
@@ -483,7 +482,7 @@ function LiveView() {
               return a.position - b.position;
             }).map((entry, idx) => {
               const isNext = nextMatchSet.has(entry.playerId);
-              const isOnDeck = !isNext && idx < onDeckCount;
+              const isOnDeck = !isNext && entry.position >= 4 && entry.position < 12;
               const dotIcon = isNext ? '🟢' : isOnDeck ? '🟡' : '⚪';
 
               return (
