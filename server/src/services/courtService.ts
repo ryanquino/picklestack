@@ -150,7 +150,7 @@ export function startMatch(sessionId: string, courtNumber: number): Match {
       playerIds = [...team1Expanded, ...team2Expanded];
     } else {
       // Smart modes: casual, balanced, competitive — all use selectPairing with different config
-      const pairingInput = buildPairingInput(sessionId, queue);
+      const pairingInput = buildPairingInput(sessionId, queue, matchingMode);
       pairingInput.pairingMode = matchingMode as 'casual' | 'balanced' | 'competitive';
       candidatePool = pairingInput.candidatePool;
       const result = selectPairing(pairingInput);
@@ -278,7 +278,8 @@ export function replacePlayerInMatch(sessionId: string, courtNumber: number, old
 function buildCandidatePool(
   sessionId: string,
   queue: QueueEntryRow[],
-  gameMode: GameMode = 'doubles'
+  gameMode: GameMode = 'doubles',
+  matchingMode?: string
 ): PairingCandidate[] {
   const ratings = getSessionRatings(sessionId);
   const ratingRows = getPlayerRatingsBySession(sessionId);
@@ -290,6 +291,9 @@ function buildCandidatePool(
   let maxPoolSize: number;
   if (gameMode === 'singles') {
     maxPoolSize = 4;
+  } else if (matchingMode === 'casual') {
+    // Casual: smaller pool to enforce strict FIFO — longest waiting always plays
+    maxPoolSize = 6;
   } else {
     // Scale pool size with total players in session for better diversity
     const totalPlayers = getPlayersBySession(sessionId).length;
@@ -457,8 +461,8 @@ function selectSinglesPlayers(
  * Builds the full PairingInput for the smart pairing algorithm.
  * Includes candidate pool, teammate history, opponent history, and match config history.
  */
-function buildPairingInput(sessionId: string, queue: QueueEntryRow[]): PairingInput {
-  const candidatePool = buildCandidatePool(sessionId, queue, 'doubles');
+function buildPairingInput(sessionId: string, queue: QueueEntryRow[], matchingMode?: string): PairingInput {
+  const candidatePool = buildCandidatePool(sessionId, queue, 'doubles', matchingMode);
 
   // Build teammate and opponent history maps from pairing_history table
   const pairingHistoryRows = getPairingHistoryBySession(sessionId);
@@ -736,7 +740,7 @@ export function previewNextMatch(sessionId: string): string[] {
       const team2Expanded = expandTeamPlayerIds(result.team2, candidatePool);
       return [...team1Expanded, ...team2Expanded];
     } else {
-      const pairingInput = buildPairingInput(sessionId, queue);
+      const pairingInput = buildPairingInput(sessionId, queue, matchingMode);
       pairingInput.pairingMode = matchingMode as 'casual' | 'balanced' | 'competitive';
       const candidatePool = pairingInput.candidatePool;
       const result = selectPairing(pairingInput);
