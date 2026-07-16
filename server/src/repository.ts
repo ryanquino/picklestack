@@ -16,6 +16,7 @@ export interface SessionRow {
   game_mode: string;
   matching_mode: string;
   session_duration_hours: number;
+  mlp_config?: string | null;
   live_view_url: string;
   created_at: string;
   updated_at: string;
@@ -25,6 +26,7 @@ export interface PlayerRow {
   id: string;
   session_id: string;
   name: string;
+  gender: string | null;
   checked_in_at: string;
 }
 
@@ -102,8 +104,8 @@ export function updateSession(id: string, updates: Partial<Pick<SessionRow, 'nam
 export function createPlayer(player: PlayerRow): PlayerRow {
   const db = getDb();
   db.prepare(`
-    INSERT INTO players (id, session_id, name, checked_in_at)
-    VALUES (@id, @session_id, @name, @checked_in_at)
+    INSERT INTO players (id, session_id, name, gender, checked_in_at)
+    VALUES (@id, @session_id, @name, @gender, @checked_in_at)
   `).run(player);
   return player;
 }
@@ -351,11 +353,12 @@ export function getMatchResultsBySession(sessionId: string): MatchResultRow[] {
   ).all(sessionId) as MatchResultRow[];
 }
 
-export function updateMatchResult(matchId: string, updates: { winner_player_ids: string; loser_player_ids: string; updated_at: string }): void {
+export function updateMatchResult(matchId: string, updates: { winner_player_ids: string; loser_player_ids: string; updated_at: string; team1_score?: number | null; team2_score?: number | null }): void {
   const db = getDb();
   db.prepare(`
     UPDATE match_results
-    SET winner_player_ids = @winner_player_ids, loser_player_ids = @loser_player_ids, updated_at = @updated_at
+    SET winner_player_ids = @winner_player_ids, loser_player_ids = @loser_player_ids, updated_at = @updated_at,
+        team1_score = @team1_score, team2_score = @team2_score
     WHERE match_id = @match_id
   `).run({ match_id: matchId, ...updates });
 }
@@ -501,6 +504,7 @@ export interface SessionSettingsRow {
   game_mode: string;
   matching_mode: string;
   session_duration_hours: number;
+  mlp_config: string | null;
 }
 
 export function updateSessionSettings(sessionId: string, settings: SessionSettingsRow & { updated_at: string }): void {
@@ -509,7 +513,7 @@ export function updateSessionSettings(sessionId: string, settings: SessionSettin
     UPDATE sessions
     SET name = @name, court_count = @court_count, court_name = @court_name,
         session_type = @session_type, game_mode = @game_mode, matching_mode = @matching_mode,
-        session_duration_hours = @session_duration_hours,
+        session_duration_hours = @session_duration_hours, mlp_config = @mlp_config,
         updated_at = @updated_at
     WHERE id = @id
   `).run({ id: sessionId, ...settings });
@@ -518,7 +522,7 @@ export function updateSessionSettings(sessionId: string, settings: SessionSettin
 export function getSessionSettings(sessionId: string): SessionSettingsRow | undefined {
   const db = getDb();
   const row = db.prepare(
-    'SELECT name, court_count, court_name, session_type, game_mode, matching_mode, session_duration_hours FROM sessions WHERE id = ?'
+    'SELECT name, court_count, court_name, session_type, game_mode, matching_mode, session_duration_hours, mlp_config FROM sessions WHERE id = ?'
   ).get(sessionId) as SessionSettingsRow | undefined;
   return row;
 }

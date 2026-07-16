@@ -6,9 +6,10 @@ export interface Session {
   status: 'active' | 'ended';
   liveViewUrl: string;     // Unique shareable URL
   sessionType?: SessionType;    // 'tournament' | 'open_play'
-  gameMode?: GameMode;          // 'doubles' | 'singles'
+  gameMode?: GameMode;          // 'doubles' | 'singles' | 'mlp'
   matchingMode?: MatchingMode;  // 'queue' | 'smart' | 'tournament' | 'skill_courts'
   courtName?: string;           // 0-50 chars, optional label
+  mlpConfig?: MLPTournamentConfig;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -58,7 +59,7 @@ export interface SessionSummary {
 export type SessionType = 'tournament' | 'open_play';
 
 /** Game mode determining players per match */
-export type GameMode = 'doubles' | 'singles';
+export type GameMode = 'doubles' | 'singles' | 'mlp';
 
 /** Matching mode for player assignment */
 export type MatchingMode = 'casual' | 'balanced' | 'competitive' | 'queue';
@@ -72,6 +73,7 @@ export interface SessionSettings {
   gameMode: GameMode;
   matchingMode: MatchingMode;
   sessionDurationHours: number;
+  mlpConfig?: MLPTournamentConfig;
 }
 
 /** Match result with optional scores */
@@ -122,6 +124,8 @@ export interface MatchResult {
   sessionId: string;
   winnerPlayerIds: string[];
   loserPlayerIds: string[];
+  team1Score: number | null;
+  team2Score: number | null;
   recordedAt: Date;
   updatedAt: Date;
 }
@@ -265,4 +269,79 @@ export interface SessionStateExtensions {
   waitEstimates: Record<string, number | null>;  // playerId → minutes or null
   paceMetrics: PaceMetrics;
   qualityMetrics: SessionQualityMetrics;
+}
+
+// ============================================================
+// MLP Tournament Types
+// ============================================================
+
+/** Gender for MLP team composition */
+export type PlayerGender = 'male' | 'female';
+
+/** MLP sub-game types within a team match */
+export type MLPSubGame = 'womens_doubles' | 'mens_doubles' | 'mixed_doubles_1' | 'mixed_doubles_2' | 'dreambreaker';
+
+/** MLP tournament configuration stored on the session */
+export interface MLPTournamentConfig {
+  thirdPlacePlayoff: boolean;       // Whether semifinal losers play for 3rd
+  gameTo: 11 | 15;                  // Points per game (normal)
+  dreamBreakerEnabled: boolean;     // Whether dreambreaker is used at 2-2
+  dreamBreakerTo: number;           // Points for dreambreaker (default 21)
+  teamCount: number;                // Number of teams in the bracket
+}
+
+/** A team in the MLP tournament (4 players: 2M + 2F) */
+export interface TournamentTeam {
+  id: string;
+  sessionId: string;
+  name: string;                     // Team display name
+  player1Id: string;
+  player1Name?: string;
+  player2Id: string;
+  player2Name?: string;
+  player3Id: string;
+  player3Name?: string;
+  player4Id: string;
+  player4Name?: string;
+  seed: number;                     // Bracket seeding (1-based)
+  createdAt: string;
+}
+
+/** A node in the single-elimination bracket */
+export interface TournamentBracket {
+  id: string;
+  sessionId: string;
+  round: number;                    // 0 = quarterfinals, 1 = semifinals, 2 = final, etc.
+  roundName: string;                // e.g. "Quarterfinals", "Semifinals", "Final"
+  matchIndex: number;               // Position within the round (0-based)
+  teamAId: string | null;           // null = TBD (bye or waiting for winner)
+  teamBId: string | null;
+  winnerTeamId: string | null;      // Set after match completes
+  matchId: string | null;           // FK to matches table when started
+  isBye: boolean;                   // true if this is an auto-bye slot
+  createdAt: string;
+}
+
+/** Result of a single sub-game within an MLP team match */
+export interface MLPSubGameResult {
+  subGame: MLPSubGame;
+  winningTeamId: string;
+  team1Score: number;
+  team2Score: number;
+}
+
+/** Overall result of an MLP team match */
+export interface MLPTeamMatchResult {
+  matchId: string;
+  bracketId: string;
+  teamAId: string;
+  teamBId: string;
+  teamAWins: number;                // Games won by team A
+  teamBWins: number;                // Games won by team B
+  subGames: MLPSubGameResult[];
+  winnerTeamId: string;
+  dreamBreakerPlayed: boolean;
+  totalScoreA: number;              // Total points scored by team A
+  totalScoreB: number;              // Total points scored by team B
+  completedAt: string;
 }

@@ -121,6 +121,66 @@ CREATE TABLE IF NOT EXISTS match_quality_scores (
 
 CREATE INDEX IF NOT EXISTS idx_match_quality_session
   ON match_quality_scores(session_id);
+
+-- ============================================================
+-- MLP Tournament Tables
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS tournament_teams (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES sessions(id),
+  name TEXT NOT NULL,
+  player1_id TEXT NOT NULL REFERENCES players(id),
+  player2_id TEXT NOT NULL REFERENCES players(id),
+  player3_id TEXT NOT NULL REFERENCES players(id),
+  player4_id TEXT NOT NULL REFERENCES players(id),
+  seed INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_tournament_teams_session
+  ON tournament_teams(session_id);
+
+CREATE TABLE IF NOT EXISTS tournament_brackets (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES sessions(id),
+  round INTEGER NOT NULL,
+  round_name TEXT NOT NULL,
+  match_index INTEGER NOT NULL,
+  team_a_id TEXT REFERENCES tournament_teams(id),
+  team_b_id TEXT REFERENCES tournament_teams(id),
+  winner_team_id TEXT REFERENCES tournament_teams(id),
+  match_id TEXT REFERENCES matches(id),
+  is_bye INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_tournament_brackets_session
+  ON tournament_brackets(session_id);
+
+CREATE INDEX IF NOT EXISTS idx_tournament_brackets_round
+  ON tournament_brackets(session_id, round);
+
+CREATE TABLE IF NOT EXISTS mlp_match_results (
+  id TEXT PRIMARY KEY,
+  match_id TEXT NOT NULL REFERENCES matches(id),
+  bracket_id TEXT NOT NULL REFERENCES tournament_brackets(id),
+  session_id TEXT NOT NULL REFERENCES sessions(id),
+  team_a_id TEXT NOT NULL REFERENCES tournament_teams(id),
+  team_b_id TEXT NOT NULL REFERENCES tournament_teams(id),
+  team_a_wins INTEGER NOT NULL DEFAULT 0,
+  team_b_wins INTEGER NOT NULL DEFAULT 0,
+  sub_games TEXT NOT NULL DEFAULT '[]',
+  winner_team_id TEXT NOT NULL REFERENCES tournament_teams(id),
+  dream_breaker_played INTEGER NOT NULL DEFAULT 0,
+  completed_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_mlp_results_session
+  ON mlp_match_results(session_id);
+
+CREATE INDEX IF NOT EXISTS idx_mlp_results_bracket
+  ON mlp_match_results(bracket_id);
 `;
 
 /**
@@ -173,6 +233,30 @@ export function getDb(): Database.Database {
   const hasDurationHours = sessionColumnsInfo.some((col) => col.name === 'session_duration_hours');
   if (!hasDurationHours) {
     db.exec('ALTER TABLE sessions ADD COLUMN session_duration_hours REAL NOT NULL DEFAULT 4');
+  }
+
+  // Migration: Add mlp_config column to sessions if it doesn't exist
+  const hasMlpConfig = sessionColumnsInfo.some((col) => col.name === 'mlp_config');
+  if (!hasMlpConfig) {
+    db.exec("ALTER TABLE sessions ADD COLUMN mlp_config TEXT DEFAULT NULL");
+  }
+
+  // Migration: Add gender column to players if it doesn't exist
+  const playerColumnsInfo = db.pragma('table_info(players)') as Array<{ name: string }>;
+  const hasGender = playerColumnsInfo.some((col) => col.name === 'gender');
+  if (!hasGender) {
+    db.exec("ALTER TABLE players ADD COLUMN gender TEXT DEFAULT NULL");
+  }
+
+  // Add score columns to mlp_match_results for point differential tracking
+  const mlpColumnsInfo = db.pragma('table_info(mlp_match_results)') as Array<{ name: string }>;
+  const hasTotalScoreA = mlpColumnsInfo.some((col) => col.name === 'total_score_a');
+  if (!hasTotalScoreA) {
+    db.exec("ALTER TABLE mlp_match_results ADD COLUMN total_score_a INTEGER NOT NULL DEFAULT 0");
+  }
+  const hasTotalScoreB = mlpColumnsInfo.some((col) => col.name === 'total_score_b');
+  if (!hasTotalScoreB) {
+    db.exec("ALTER TABLE mlp_match_results ADD COLUMN total_score_b INTEGER NOT NULL DEFAULT 0");
   }
 
   return db;

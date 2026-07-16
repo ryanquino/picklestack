@@ -72,17 +72,24 @@ export function getSessionLive(sessionId: string): Promise<{
 }
 
 /** Check in a player to a session */
-export function addPlayer(sessionId: string, name: string, starRating?: number, skipQueue?: boolean): Promise<Player> {
-  return request<Player>(`/sessions/${sessionId}/players`, {
+export function addPlayer(sessionId: string, name: string, starRating?: number, skipQueue?: boolean, partnerId?: string, gender?: string): Promise<Player & { pairId: string | null; pairError: string | null }> {
+  return request<Player & { pairId: string | null; pairError: string | null }>(`/sessions/${sessionId}/players`, {
     method: 'POST',
-    body: JSON.stringify({ name, ...(starRating !== undefined && { starRating }), ...(skipQueue && { skipQueue: true }) }),
+    body: JSON.stringify({
+      name,
+      ...(starRating !== undefined && { starRating }),
+      ...(skipQueue && { skipQueue: true }),
+      ...(partnerId && { partnerId }),
+      ...(gender && { gender }),
+    }),
   });
 }
 
 /** Move a bench player into the queue */
-export function joinQueue(sessionId: string, playerId: string): Promise<void> {
+export function joinQueue(sessionId: string, playerId: string, starRating?: number): Promise<void> {
   return request<void>(`/sessions/${sessionId}/players/${playerId}/join-queue`, {
     method: 'POST',
+    body: starRating !== undefined ? JSON.stringify({ starRating }) : undefined,
   });
 }
 
@@ -91,6 +98,22 @@ export function updatePlayerStarRating(sessionId: string, playerId: string, star
   return request<void>(`/sessions/${sessionId}/players/${playerId}/star-rating`, {
     method: 'PUT',
     body: JSON.stringify({ starRating }),
+  });
+}
+
+/** Update a player's gender */
+export function updatePlayerGender(sessionId: string, playerId: string, gender: string | null): Promise<void> {
+  return request<void>(`/sessions/${sessionId}/players/${playerId}/gender`, {
+    method: 'PUT',
+    body: JSON.stringify({ gender }),
+  });
+}
+
+/** Bulk update player genders */
+export function bulkUpdatePlayerGender(sessionId: string, updates: Array<{ playerId: string; gender: string | null }>): Promise<{ updated: number }> {
+  return request(`/sessions/${sessionId}/players/gender-bulk`, {
+    method: 'PUT',
+    body: JSON.stringify({ updates }),
   });
 }
 
@@ -124,6 +147,21 @@ export function startMatch(sessionId: string, courtNumber: number): Promise<{
 }> {
   return request(`/sessions/${sessionId}/courts/${courtNumber}/start`, {
     method: 'POST',
+  });
+}
+
+/** Start a match with manually selected players */
+export function startMatchManual(sessionId: string, courtNumber: number, playerIds: string[]): Promise<{
+  id: string;
+  sessionId: string;
+  courtNumber: number;
+  playerIds: string[];
+  status: string;
+  startedAt: string;
+}> {
+  return request(`/sessions/${sessionId}/courts/${courtNumber}/start-manual`, {
+    method: 'POST',
+    body: JSON.stringify({ playerIds }),
   });
 }
 
@@ -180,16 +218,29 @@ export function replacePlayer(
   });
 }
 
-/** Update the winning team for a previously recorded match result */
+/** Update the winning team and/or scores for a previously recorded match result */
 export function updateMatchResult(
   sessionId: string,
   matchId: string,
-  winningTeam: WinningTeam
+  body: {
+    winningTeam?: WinningTeam;
+    team1Score?: number;
+    team2Score?: number;
+  }
 ): Promise<void> {
   return request<void>(`/sessions/${sessionId}/matches/${matchId}/result`, {
     method: 'PUT',
-    body: JSON.stringify({ winningTeam }),
+    body: JSON.stringify(body),
   });
+}
+
+/** Get all completed casual match results for a session (for the Results panel) */
+export function getCasualMatchResults(
+  sessionId: string
+): Promise<import('./types').CasualMatchResult[]> {
+  return request<import('./types').CasualMatchResult[]>(
+    `/sessions/${sessionId}/match-results`
+  );
 }
 
 /** Get player statistics for a session */
@@ -269,4 +320,171 @@ export function dissolveFixedPair(sessionId: string, pairId: string): Promise<vo
 /** Get all fixed pairs for a session */
 export function getFixedPairs(sessionId: string): Promise<FixedPair[]> {
   return request<FixedPair[]>(`/sessions/${sessionId}/pairs`);
+}
+
+/** Get minimal session info for the public join page */
+export function getSessionJoinInfo(sessionId: string): Promise<{
+  sessionId: string;
+  name: string;
+  status: string;
+  gameMode: string;
+  matchingMode: string;
+  playerCount: number;
+}> {
+  return request(`/sessions/${sessionId}/join-info`);
+}
+
+/** Get bench players for autocomplete on the join page */
+export function getBenchPlayers(sessionId: string): Promise<Array<{ id: string; name: string }>> {
+  return request(`/sessions/${sessionId}/bench-players`);
+}
+
+/** Get a player's current status (bench, queue, playing, not-found) */
+export function getPlayerStatus(sessionId: string, playerId: string): Promise<{ status: 'bench' | 'queue' | 'playing' | 'not-found' }> {
+  return request(`/sessions/${sessionId}/players/${playerId}/status`);
+}
+
+/** Get all players in a session with their status */
+export function getAllPlayers(sessionId: string): Promise<Array<{ id: string; name: string; gender: string | null; status: 'bench' | 'queue' | 'playing' }>> {
+  return request(`/sessions/${sessionId}/all-players`);
+}
+
+// ============================================================
+// MLP Tournament API
+// ============================================================
+
+import type {
+  TournamentTeam,
+  TournamentBracket,
+  MLPTeamMatchResult,
+  MLPTournamentConfig,
+} from './types';
+
+/** Get full tournament state (teams, brackets, results, rankings) */
+export function getTournament(sessionId: string): Promise<{
+  config: MLPTournamentConfig | null;
+  teams: TournamentTeam[];
+  brackets: TournamentBracket[];
+  results: MLPTeamMatchResult[];
+  isComplete: boolean;
+  champion: TournamentTeam | null;
+  rankings: Array<{ rank: number; team: TournamentTeam; pointDifferential: number }>;
+}> {
+  return request(`/sessions/${sessionId}/tournament`);
+}
+
+/** Create a team manually */
+export function createTournamentTeam(
+  sessionId: string,
+  name: string,
+  playerIds: [string, string, string, string],
+  seed?: number
+): Promise<TournamentTeam> {
+  return request(`/sessions/${sessionId}/tournament/teams`, {
+    method: 'POST',
+    body: JSON.stringify({ name, playerIds, seed }),
+  });
+}
+
+/** Create teams randomly from male/female player pools */
+export function createTournamentTeamsRandom(
+  sessionId: string,
+  teamCount: number,
+  malePlayerIds: string[],
+  femalePlayerIds: string[]
+): Promise<TournamentTeam[]> {
+  return request(`/sessions/${sessionId}/tournament/teams/random`, {
+    method: 'POST',
+    body: JSON.stringify({ teamCount, malePlayerIds, femalePlayerIds }),
+  });
+}
+
+/** Update a team's name or players */
+export function updateTournamentTeam(
+  sessionId: string,
+  teamId: string,
+  updates: { name?: string; playerIds?: [string, string, string, string] }
+): Promise<TournamentTeam> {
+  return request(`/sessions/${sessionId}/tournament/teams/${teamId}`, {
+    method: 'PUT',
+    body: JSON.stringify(updates),
+  });
+}
+
+/** Delete all teams for a session */
+export function deleteTournamentTeams(sessionId: string): Promise<void> {
+  return request(`/sessions/${sessionId}/tournament/teams`, {
+    method: 'DELETE',
+  });
+}
+
+/** Delete a single team by ID */
+export function deleteTournamentTeam(sessionId: string, teamId: string): Promise<void> {
+  return request(`/sessions/${sessionId}/tournament/teams/${teamId}`, {
+    method: 'DELETE',
+  });
+}
+
+/** Generate a bracket from team IDs */
+export function generateBracket(
+  sessionId: string,
+  teamIds: string[]
+): Promise<TournamentBracket[]> {
+  return request(`/sessions/${sessionId}/tournament/bracket`, {
+    method: 'POST',
+    body: JSON.stringify({ teamIds }),
+  });
+}
+
+export function fixBracket(sessionId: string): Promise<{ changed: boolean }> {
+  return request(`/sessions/${sessionId}/tournament/fix`, {
+    method: 'POST',
+  });
+}
+
+/** Start the next tournament round (creates next round's matches with PD-based byes) */
+export function advanceTournamentRound(sessionId: string): Promise<TournamentBracket[]> {
+  return request(`/sessions/${sessionId}/tournament/advance`, {
+    method: 'POST',
+  });
+}
+
+/** Start the next tournament match on a court */
+export function startTournamentMatch(
+  sessionId: string,
+  courtNumber: number
+): Promise<{ match: { id: string }; bracket: TournamentBracket }> {
+  return request(`/sessions/${sessionId}/tournament/start`, {
+    method: 'POST',
+    body: JSON.stringify({ courtNumber }),
+  });
+}
+
+/** Complete an MLP team match with sub-game results */
+export function completeTournamentMatch(
+  sessionId: string,
+  bracketId: string,
+  matchId: string,
+  subGames: Array<{ subGame: string; winningTeamId: string; team1Score: number; team2Score: number }>,
+  winnerTeamId: string,
+  dreamBreakerPlayed: boolean
+): Promise<MLPTeamMatchResult> {
+  return request(`/sessions/${sessionId}/tournament/match/${bracketId}/complete`, {
+    method: 'POST',
+    body: JSON.stringify({ matchId, subGames, winnerTeamId, dreamBreakerPlayed }),
+  });
+}
+
+/** Update a completed match — change winner and/or scores */
+export function updateTournamentMatch(
+  sessionId: string,
+  bracketId: string,
+  subGames: Array<{ subGame: string; winningTeamId: string; team1Score: number; team2Score: number }>,
+  winnerTeamId: string,
+  dreamBreakerPlayed: boolean
+): Promise<MLPTeamMatchResult> {
+  return request(`/sessions/${sessionId}/tournament/match/${bracketId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ subGames, winnerTeamId, dreamBreakerPlayed }),
+  });
 }

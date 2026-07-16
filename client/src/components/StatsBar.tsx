@@ -2,7 +2,9 @@ interface StatsBarProps {
   totalPlayers: number;
   matchesPlayed: number;
   averageWinRate: number;
-  sessionQualityScore?: number | null;
+  inQueue: number;
+  activeCourts: number;
+  courtCount: number;
 }
 
 /**
@@ -13,22 +15,10 @@ function StatsBar({
   totalPlayers,
   matchesPlayed,
   averageWinRate,
-  sessionQualityScore,
+  inQueue,
+  activeCourts,
+  courtCount,
 }: StatsBarProps) {
-  function getQualityLabel(score: number | null | undefined): string {
-    if (score == null) return 'N/A';
-    if (score >= 70) return 'Great';
-    if (score >= 40) return 'Decent';
-    return 'Lopsided';
-  }
-
-  function getQualityIcon(score: number | null | undefined): string {
-    if (score == null) return '🎯';
-    if (score >= 70) return '🟢';
-    if (score >= 40) return '🟡';
-    return '🔴';
-  }
-
   return (
     <div className="stats-bar" role="region" aria-label="Session statistics">
       <div className="stats-bar__item">
@@ -37,19 +27,24 @@ function StatsBar({
         <span>Players</span>
       </div>
       <div className="stats-bar__item">
+        <span className="stats-bar__icon" role="img" aria-label="In queue">⏳</span>
+        <span className="stats-bar__value">{inQueue}</span>
+        <span>In Queue</span>
+      </div>
+      <div className="stats-bar__item">
         <span className="stats-bar__icon" role="img" aria-label="Matches">✅</span>
         <span className="stats-bar__value">{matchesPlayed}</span>
         <span>Matches</span>
       </div>
       <div className="stats-bar__item">
+        <span className="stats-bar__icon" role="img" aria-label="Active courts">🏟️</span>
+        <span className="stats-bar__value">{activeCourts}/{courtCount}</span>
+        <span>Courts</span>
+      </div>
+      <div className="stats-bar__item">
         <span className="stats-bar__icon" role="img" aria-label="Win rate">📊</span>
         <span className="stats-bar__value">{Math.round(averageWinRate)}%</span>
         <span>Avg Win</span>
-      </div>
-      <div className="stats-bar__item">
-        <span className="stats-bar__icon" role="img" aria-label="Match quality">{getQualityIcon(sessionQualityScore)}</span>
-        <span className="stats-bar__value">{getQualityLabel(sessionQualityScore)}</span>
-        <span>Match Quality</span>
       </div>
     </div>
   );

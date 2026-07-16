@@ -95,3 +95,6 @@ function determineMvp(
 
   return sorted[0].playerId;
 }
+
+/** Public re-export for use by other modules */
+export { determineMvp };

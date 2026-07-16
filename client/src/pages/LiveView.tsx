@@ -92,6 +92,7 @@ interface LiveResponse {
   onDeckPlayerIds?: string[];
   completedMatches?: CompletedMatch[];
   totalCompletedMatches?: number;
+  mvpPlayerId?: string | null;
   waitEstimates?: Record<string, number | null>;
   diversity?: Record<string, number>;
 }
@@ -115,22 +116,12 @@ type ViewState =
   | { kind: 'error'; message: string };
 
 /** Build leaderboard entries from playerStats and achievements */
-function buildLeaderboard(playerStats: PlayerStats[], achievements: Achievement[]): LeaderboardEntry[] {
+function buildLeaderboard(playerStats: PlayerStats[], achievements: Achievement[], mvpPlayerId?: string | null): LeaderboardEntry[] {
   const achievementsByPlayer = new Map<string, Achievement[]>();
   for (const a of achievements) {
     const list = achievementsByPlayer.get(a.playerId) || [];
     list.push(a);
     achievementsByPlayer.set(a.playerId, list);
-  }
-
-  // Determine MVP: highest win rate among players with 3+ matches
-  let mvpPlayerId: string | null = null;
-  let mvpWinRate = -1;
-  for (const stat of playerStats) {
-    if (stat.matchesPlayed >= 3 && stat.winRate > mvpWinRate) {
-      mvpWinRate = stat.winRate;
-      mvpPlayerId = stat.playerId;
-    }
   }
 
   // Sort: win rate desc, matches played desc, name asc
@@ -225,7 +216,7 @@ function LiveView() {
     const playersPerMatch = (session.gameMode === 'singles') ? 2 : 4;
     const totalMatchesPlayed = playerStats.reduce((sum, p) => sum + p.matchesPlayed, 0);
     const totalMatches = totalMatchesPlayed > 0 ? Math.round(totalMatchesPlayed / playersPerMatch) : activeMatches.length;
-    const leaderboardEntries = buildLeaderboard(playerStats, achievements);
+    const leaderboardEntries = buildLeaderboard(playerStats, achievements, state.data.mvpPlayerId);
 
     return (
       <div className="organizer-dashboard">
@@ -334,7 +325,7 @@ function LiveView() {
   const matchingMode = session.matchingMode || 'balanced';
   const onDeckCount = getOnDeckCount(gameMode, matchingMode, queue.length);
   const onDeckPlayers = queue.slice(0, onDeckCount);
-  const leaderboardEntries = buildLeaderboard(playerStats, achievements);
+  const leaderboardEntries = buildLeaderboard(playerStats, achievements, state.data.mvpPlayerId);
   const courtNames = session.courtNames || {};
 
   function getCourtDisplayName(courtNumber: number): string {

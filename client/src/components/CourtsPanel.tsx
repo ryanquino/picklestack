@@ -30,6 +30,7 @@ interface CourtsPanelProps {
   onCompleteMatch: (courtNumber: number) => Promise<void>;
   onMatchCompleted: () => void;
   onPlayerClick: (playerId: string) => void;
+  onOpenManualMatch?: (courtNumber: number) => void;
 }
 
 function CourtsPanel({
@@ -47,6 +48,7 @@ function CourtsPanel({
   onCompleteMatch,
   onMatchCompleted,
   onPlayerClick,
+  onOpenManualMatch,
 }: CourtsPanelProps) {
   const activeMatchCount = activeMatches.filter((m) => m.status === 'active').length;
 
@@ -103,6 +105,7 @@ function CourtsPanel({
           onCompleteMatch={onCompleteMatch}
           onMatchCompleted={onMatchCompleted}
           onPlayerClick={onPlayerClick}
+          onOpenManualMatch={onOpenManualMatch}
         />
       </div>
     </div>

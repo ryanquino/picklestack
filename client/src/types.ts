@@ -11,6 +11,7 @@ export interface Session {
   gameMode?: GameMode;
   matchingMode?: MatchingMode;
   courtName?: string;
+  mlpConfig?: MLPTournamentConfig;
 }
 
 /** A participant checked into a session */
@@ -75,7 +76,7 @@ export interface SessionSummary {
 export type SessionType = 'tournament' | 'open_play';
 
 /** Game mode determining players per match */
-export type GameMode = 'doubles' | 'singles';
+export type GameMode = 'doubles' | 'singles' | 'mlp';
 
 /** Matching mode for player assignment */
 export type MatchingMode = 'casual' | 'balanced' | 'competitive' | 'queue';
@@ -89,6 +90,7 @@ export interface SessionSettings {
   gameMode: GameMode;
   matchingMode: MatchingMode;
   sessionDurationHours: number;
+  mlpConfig?: MLPTournamentConfig;
 }
 
 // --- Smart Match Scoring Types ---
@@ -117,6 +119,22 @@ export interface MatchResult {
   loserPlayerIds: [string, string];
   recordedAt: string;      // ISO date string from API
   updatedAt: string;       // ISO date string from API
+}
+
+/** A completed casual match result with match + player details, for the Results panel */
+export interface CasualMatchResult {
+  matchId: string;
+  courtNumber: number;
+  status: string;
+  playerIds: string[];
+  playerNames: string[];
+  team1PlayerIds: string[];
+  team2PlayerIds: string[];
+  team1Score: number | null;
+  team2Score: number | null;
+  winningTeam: 'team1' | 'team2';
+  recordedAt: string;
+  updatedAt: string;
 }
 
 /** Player statistics for display */
@@ -200,4 +218,77 @@ export interface PlayerProfile {
   matchHistory: MatchHistoryEntry[];
   headToHead: HeadToHeadRecord[];
   achievements: Achievement[];
+}
+
+// ============================================================
+// MLP Tournament Types
+// ============================================================
+
+/** Gender for MLP team composition */
+export type PlayerGender = 'male' | 'female';
+
+/** MLP sub-game types within a team match */
+export type MLPSubGame = 'womens_doubles' | 'mens_doubles' | 'mixed_doubles_1' | 'mixed_doubles_2' | 'dreambreaker';
+
+/** MLP tournament configuration */
+export interface MLPTournamentConfig {
+  thirdPlacePlayoff: boolean;
+  gameTo: 11 | 15;
+  dreamBreakerEnabled: boolean;
+  dreamBreakerTo: number;
+  teamCount: number;
+}
+
+/** A team in the MLP tournament */
+export interface TournamentTeam {
+  id: string;
+  sessionId: string;
+  name: string;
+  player1Id: string;
+  player1Name?: string;
+  player2Id: string;
+  player2Name?: string;
+  player3Id: string;
+  player3Name?: string;
+  player4Id: string;
+  player4Name?: string;
+  seed: number;
+  createdAt: string;
+}
+
+/** A node in the single-elimination bracket */
+export interface TournamentBracket {
+  id: string;
+  sessionId: string;
+  round: number;
+  roundName: string;
+  matchIndex: number;
+  teamAId: string | null;
+  teamBId: string | null;
+  winnerTeamId: string | null;
+  matchId: string | null;
+  isBye: boolean;
+  createdAt: string;
+}
+
+/** Result of a single sub-game */
+export interface MLPSubGameResult {
+  subGame: MLPSubGame;
+  winningTeamId: string;
+  team1Score: number;
+  team2Score: number;
+}
+
+/** Overall result of an MLP team match */
+export interface MLPTeamMatchResult {
+  matchId: string;
+  bracketId: string;
+  teamAId: string;
+  teamBId: string;
+  teamAWins: number;
+  teamBWins: number;
+  subGames: MLPSubGameResult[];
+  winnerTeamId: string;
+  dreamBreakerPlayed: boolean;
+  completedAt: string;
 }

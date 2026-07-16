@@ -172,10 +172,24 @@ export function recordMatchResult(input: MatchResultInput): MatchResult {
 }
 
 /**
- * Updates an existing match result's winning team designation.
+ * Updates an existing match result's winning team and/or scores.
  * Reverses the previous rating changes and applies new ones.
+ *
+ * - winningTeam: optional. If omitted, the existing winner is preserved
+ *   (unless scores are provided, in which case the winner is derived from them).
+ * - team1Score / team2Score: optional. If both provided, they are validated
+ *   and used to derive the winner and score margin for ratings.
  */
-export function updateMatchResult(matchId: string, winningTeam: 'team1' | 'team2'): MatchResult {
+export interface UpdateMatchResultInput {
+  winningTeam?: 'team1' | 'team2';
+  team1Score?: number;
+  team2Score?: number;
+}
+
+export function updateMatchResult(
+  matchId: string,
+  input: UpdateMatchResultInput
+): MatchResult {
   // Get the existing result
   const existingRow = getMatchResultByMatchId(matchId);
   if (!existingRow) {
@@ -190,6 +204,26 @@ export function updateMatchResult(matchId: string, winningTeam: 'team1' | 'team2
 
   const playerIds: string[] = JSON.parse(matchRow.player_ids);
   const isSingles = playerIds.length === 2;
+
+  const { winningTeam: winningTeamArg, team1Score, team2Score } = input;
+
+  // Determine the new winning team
+  let winningTeam: 'team1' | 'team2';
+  if (team1Score !== undefined && team2Score !== undefined) {
+    const validation = validateScores(team1Score, team2Score);
+    if (!validation.valid) {
+      const result = validation as { valid: false; error: string };
+      throw new ValidationError(result.error, ['team1Score', 'team2Score']);
+    }
+    winningTeam = (validation as { valid: true; winner: 'team1' | 'team2' }).winner;
+  } else if (winningTeamArg) {
+    winningTeam = winningTeamArg;
+  } else {
+    // Preserve the existing winner
+    const existingWinnerIds = JSON.parse(existingRow.winner_player_ids) as string[];
+    const team1Ids = isSingles ? [playerIds[0]] : [playerIds[0], playerIds[1]];
+    winningTeam = team1Ids.every((id) => existingWinnerIds.includes(id)) ? 'team1' : 'team2';
+  }
 
   let newWinnerIds: string[];
   let newLoserIds: string[];
@@ -206,19 +240,25 @@ export function updateMatchResult(matchId: string, winningTeam: 'team1' | 'team2
     newLoserIds = winningTeam === 'team1' ? team2 : team1;
   }
 
-  // Reverse the previous result's rating changes
   const prevWinnerIds = JSON.parse(existingRow.winner_player_ids) as string[];
   const prevLoserIds = JSON.parse(existingRow.loser_player_ids) as string[];
-  reverseRatingResult(existingRow.session_id, prevWinnerIds, prevLoserIds);
 
-  // Apply the new result's rating changes
-  applyRatingResult(existingRow.session_id, newWinnerIds, newLoserIds);
+  // Reverse the previous result's rating changes, then apply the new ones.
+  // Ratings are always reversed + reapplied so score-margin changes are reflected.
+  reverseRatingResult(existingRow.session_id, prevWinnerIds, prevLoserIds);
+  const scoreMargin =
+    team1Score !== undefined && team2Score !== undefined
+      ? Math.abs(team1Score - team2Score)
+      : undefined;
+  applyRatingResult(existingRow.session_id, newWinnerIds, newLoserIds, scoreMargin);
 
   // Update the persisted result
   const now = new Date().toISOString();
   updateMatchResultRow(matchId, {
     winner_player_ids: JSON.stringify(newWinnerIds),
     loser_player_ids: JSON.stringify(newLoserIds),
+    team1_score: team1Score !== undefined ? team1Score : existingRow.team1_score,
+    team2_score: team2Score !== undefined ? team2Score : existingRow.team2_score,
     updated_at: now,
   });
 
@@ -324,6 +364,8 @@ function toMatchResult(row: MatchResultRow): MatchResult {
     sessionId: row.session_id,
     winnerPlayerIds: JSON.parse(row.winner_player_ids) as string[],
     loserPlayerIds: JSON.parse(row.loser_player_ids) as string[],
+    team1Score: row.team1_score,
+    team2Score: row.team2_score,
     recordedAt: new Date(row.recorded_at),
     updatedAt: new Date(row.updated_at),
   };

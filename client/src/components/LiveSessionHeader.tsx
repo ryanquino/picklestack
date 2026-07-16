@@ -1,13 +1,3 @@
-import { useState, useEffect } from 'react';
-
-function getTheme(): 'dark' | 'light' {
-  try {
-    const stored = localStorage.getItem('pickld_theme');
-    if (stored === 'light' || stored === 'dark') return stored;
-  } catch { /* ignore */ }
-  return 'dark';
-}
-
 /**
  * LiveSessionHeader displays the session name with a "LIVE" badge (pulse animation),
  * date/time, active court count, and queued player count for the Live View page.
@@ -25,13 +15,6 @@ function LiveSessionHeader({
   activeCourts,
   queuedPlayers,
 }: LiveSessionHeaderProps) {
-  const [theme, setTheme] = useState<'dark' | 'light'>(getTheme);
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    try { localStorage.setItem('pickld_theme', theme); } catch { /* ignore */ }
-  }, [theme]);
-
   return (
     <header className="session-header">
       <div className="session-header__info">
@@ -65,15 +48,6 @@ function LiveSessionHeader({
             {queuedPlayers === 1 ? 'Player' : 'Players'} Queued
           </span>
         </span>
-        <button
-          type="button"
-          className="navbar__theme-toggle"
-          onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
-          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-        >
-          {theme === 'dark' ? '☀️' : '🌙'}
-        </button>
       </div>
     </header>
   );

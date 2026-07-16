@@ -66,7 +66,7 @@ function toPlayer(row: PlayerRow): Player {
  *
  * @returns The created Player
  */
-export function addPlayer(sessionId: string, playerName: string): Player {
+export function addPlayer(sessionId: string, playerName: string, gender?: string): Player {
   // 1. Validate session exists and is active
   const session = getSessionById(sessionId);
   if (!session) {
@@ -94,6 +94,7 @@ export function addPlayer(sessionId: string, playerName: string): Player {
     id: uuidv4(),
     session_id: sessionId,
     name: playerName,
+    gender: gender ?? null,
     checked_in_at: now,
   });
 
@@ -116,7 +117,7 @@ export function addPlayer(sessionId: string, playerName: string): Player {
  * Adds a player to a session WITHOUT adding them to the queue (bench player).
  * Same validation as addPlayer but skips queue entry creation.
  */
-export function addPlayerToSession(sessionId: string, playerName: string): Player {
+export function addPlayerToSession(sessionId: string, playerName: string, gender?: string): Player {
   const session = getSessionById(sessionId);
   if (!session) {
     throw new ValidationError('Session not found', ['sessionId']);
@@ -137,6 +138,7 @@ export function addPlayerToSession(sessionId: string, playerName: string): Playe
     id: uuidv4(),
     session_id: sessionId,
     name: playerName,
+    gender: gender ?? null,
     checked_in_at: now,
   });
 

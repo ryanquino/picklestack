@@ -37,6 +37,7 @@ interface CourtGridProps {
   onCompleteMatch: (courtNumber: number) => Promise<void>;
   onMatchCompleted?: () => void;
   onPlayerClick?: (playerId: string) => void;
+  onOpenManualMatch?: (courtNumber: number) => void;
 }
 
 /** Find stats for a player by ID */
@@ -129,6 +130,7 @@ function CourtCard({
   onOpenReplaceModal,
   onPlayerClick,
   onCancelCountdown,
+  onOpenManualMatch,
 }: {
   court: Court;
   match: ActiveMatch | undefined;
@@ -146,6 +148,7 @@ function CourtCard({
   onOpenReplaceModal: (oldPlayerId: string, courtNumber: number) => void;
   onPlayerClick?: (playerId: string) => void;
   onCancelCountdown: (courtNumber: number) => void;
+  onOpenManualMatch?: (courtNumber: number) => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -382,14 +385,25 @@ function CourtCard({
         /* Available court content */
         <div className="court-card__available-content">
           {canStartMatch ? (
-            <button
-              className="court-card__start-btn"
-              onClick={handleStartMatch}
-              disabled={loading}
-              aria-label={`Start match on court ${court.courtNumber}`}
-            >
-              {loading ? '...' : 'GO'}
-            </button>
+            <>
+              <button
+                className="court-card__start-btn"
+                onClick={handleStartMatch}
+                disabled={loading}
+                aria-label={`Start match on court ${court.courtNumber}`}
+              >
+                {loading ? '...' : 'GO'}
+              </button>
+              {onOpenManualMatch && (
+                <button
+                  className="court-card__manual-btn"
+                  onClick={() => onOpenManualMatch(court.courtNumber)}
+                  aria-label={`Manually select players for court ${court.courtNumber}`}
+                >
+                  Select Manually
+                </button>
+              )}
+            </>
           ) : (
             <p className="court-card__empty-text">
               Waiting for players ({queueLength}/4)
@@ -417,6 +431,7 @@ function CourtGrid({
   onCompleteMatch,
   onMatchCompleted,
   onPlayerClick,
+  onOpenManualMatch,
 }: CourtGridProps) {
   const [dialogCourtNumber, setDialogCourtNumber] = useState<number | null>(null);
   const [replaceModalOpen, setReplaceModalOpen] = useState(false);
@@ -611,6 +626,7 @@ function CourtGrid({
             onOpenReplaceModal={handleOpenReplaceModal}
             onPlayerClick={onPlayerClick}
             onCancelCountdown={cancelCountdown}
+            onOpenManualMatch={onOpenManualMatch}
           />
         );
       })}

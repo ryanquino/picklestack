@@ -72,6 +72,7 @@ export function createSession(name: string, courtCount: number): Session {
     session_type: 'open_play',
     game_mode: 'doubles',
     matching_mode: 'smart',
+    session_duration_hours: 4,
     live_view_url: `/live/${liveViewId}`,
     created_at: now,
     updated_at: now,
@@ -148,7 +149,7 @@ export function endSession(sessionId: string): SessionSummary {
 // ============================================================
 
 const VALID_SESSION_TYPES: SessionType[] = ['tournament', 'open_play'];
-const VALID_GAME_MODES: GameMode[] = ['doubles', 'singles'];
+const VALID_GAME_MODES: GameMode[] = ['doubles', 'singles', 'mlp'];
 const VALID_MATCHING_MODES: MatchingMode[] = ['casual', 'balanced', 'competitive', 'queue'];
 
 // ============================================================
@@ -245,6 +246,7 @@ export function updateSessionSettings(sessionId: string, settings: SessionSettin
     game_mode: settings.gameMode,
     matching_mode: settings.matchingMode,
     session_duration_hours: settings.sessionDurationHours,
+    mlp_config: settings.mlpConfig ? JSON.stringify(settings.mlpConfig) : null,
     updated_at: now,
   });
 }
@@ -269,5 +271,6 @@ export function getSessionSettings(sessionId: string): SessionSettings {
     gameMode: row.game_mode as GameMode,
     matchingMode: row.matching_mode as MatchingMode,
     sessionDurationHours: row.session_duration_hours,
+    mlpConfig: row.mlp_config ? JSON.parse(row.mlp_config) : undefined,
   };
 }

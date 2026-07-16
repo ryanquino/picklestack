@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { PendingPlayer, SessionType, GameMode, MatchingMode, StarRating } from '../types';
+import type { PendingPlayer, SessionType, GameMode, MatchingMode, StarRating, MLPTournamentConfig, PlayerGender } from '../types';
 import { STAR_RATING_LABELS } from '../types';
 import { validateSessionForm, validatePlayerName } from './createSessionValidation';
 import type { ValidationErrors } from './createSessionValidation';
@@ -11,6 +11,11 @@ interface PendingPair {
   id: string;
   player1LocalId: string;
   player2LocalId: string;
+}
+
+/** Extended pending player with gender for MLP */
+interface MLPPendingPlayer extends PendingPlayer {
+  gender: PlayerGender;
 }
 
 function CreateSession() {
@@ -48,6 +53,26 @@ function CreateSession() {
   const [dissolvePairConfirm, setDissolvePairConfirm] = useState<string | null>(null); // localId of player whose pair dissolution is pending
   const [pairConfirmPlayerId, setPairConfirmPlayerId] = useState<string | null>(null); // localId of second player awaiting pair confirmation
 
+  // MLP Tournament Settings
+  const [mlpConfig, setMlpConfig] = useState<MLPTournamentConfig>({
+    thirdPlacePlayoff: true,
+    gameTo: 11,
+    dreamBreakerEnabled: true,
+    dreamBreakerTo: 21,
+    teamCount: 4,
+  });
+  const [playerGender, setPlayerGender] = useState<Record<string, PlayerGender>>({});
+  const [mlpTeamMode, setMlpTeamMode] = useState<'manual' | 'random'>('manual');
+
+  // Default team count to courts × 2
+  useEffect(() => {
+    setMlpConfig(prev => {
+      const defaultCount = courtCount * 2;
+      if (prev.teamCount === 4) return { ...prev, teamCount: defaultCount };
+      return prev;
+    });
+  }, [courtCount]);
+
   function handleAddPlayer() {
     const error = validatePlayerName(playerNameInput);
     if (error) {
@@ -64,6 +89,10 @@ function CreateSession() {
     };
 
     setPendingPlayers((prev) => [...prev, newPlayer]);
+    // Default gender for new players in MLP mode
+    if (gameMode === 'mlp') {
+      setPlayerGender(prev => ({ ...prev, [newPlayer.localId]: prev['__new__'] ?? 'male', '__new__': 'male' }));
+    }
     setPlayerNameInput('');
     setPlayerStarRatingInput(3);
   }
@@ -181,10 +210,11 @@ function CreateSession() {
         name: name.trim(),
         courtCount,
         courtName: courtName.trim(),
-        sessionType,
+        sessionType: gameMode === 'mlp' ? 'tournament' : sessionType,
         gameMode,
         matchingMode,
         sessionDurationHours,
+        mlpConfig: gameMode === 'mlp' ? mlpConfig : undefined,
       });
 
       // 3. Add all players — checked-in go to queue (shuffled), others go to bench
@@ -203,7 +233,8 @@ function CreateSession() {
       // Checked-in players go directly to queue in shuffled order
       for (const player of shuffled) {
         try {
-          const created = await addPlayer(session.id, player.name, player.starRating);
+          const gender = playerGender[player.localId] ?? 'male';
+          const created = await addPlayer(session.id, player.name, player.starRating, undefined, undefined, gender);
           localIdToServerId.set(player.localId, created.id);
         } catch {
           failures.push(player.name);
@@ -213,7 +244,8 @@ function CreateSession() {
       // Non-checked-in players go to bench (skipQueue)
       for (const player of benchPlayersList) {
         try {
-          const created = await addPlayer(session.id, player.name, player.starRating, true);
+          const gender = playerGender[player.localId] ?? 'male';
+          const created = await addPlayer(session.id, player.name, player.starRating, true, undefined, gender);
           localIdToServerId.set(player.localId, created.id);
         } catch {
           failures.push(player.name);
@@ -251,8 +283,12 @@ function CreateSession() {
   return (
     <div className="page">
       <Navbar />
-      <h1>Create Open Play</h1>
-      <p className="text-secondary">Set up your pickleball open play in a few steps</p>
+      <h1>{gameMode === 'mlp' ? 'Create MLP Tournament' : 'Create Open Play'}</h1>
+      <p className="text-secondary">
+        {gameMode === 'mlp'
+          ? 'Set up a Major League Pickleball style tournament with team brackets'
+          : 'Set up your pickleball open play in a few steps'}
+      </p>
 
       <form onSubmit={handleSubmit} noValidate>
         {submitError && (
@@ -383,73 +419,155 @@ function CreateSession() {
             >
               <option value="doubles">Doubles</option>
               <option value="singles">Singles</option>
+              <option value="mlp">MLP Format</option>
             </select>
             <p id="game-mode-helper" className="create-session__helper">
-              Doubles = teams of 2, Singles = 1v1 matches
+              {gameMode === 'mlp'
+                ? 'MLP Format: 4-player teams (2M + 2F) competing in a single-elimination bracket'
+                : 'Doubles = teams of 2, Singles = 1v1 matches'}
             </p>
           </div>
 
-          <div className="create-session__field">
-            <label>Match Making Mode</label>
-            <p className="create-session__helper" style={{ marginBottom: '0.75rem' }}>
-              Controls how the system selects and pairs players for each match. Choose the style that best fits the energy of your session.
-            </p>
-            <div role="radiogroup" aria-label="Match making mode" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {([
-                { value: 'casual', label: 'Casual', badge: null, desc: 'Every player faces a fresh opponent each round. Perfect for social sessions where variety and fun matter more than competition.' },
-                { value: 'balanced', label: 'Smart', badge: 'COMING SOON', desc: 'Equal court time for everyone with skill-balanced teams. The algorithm ensures fair play while keeping matches competitive. Best for most open play sessions.', disabled: true },
-                { value: 'competitive', label: 'Competitive', badge: 'COMING SOON', desc: 'Skill rating drives all matchups. Players are grouped by ability for the tightest possible games. Repeat opponents may occur.', disabled: true },
-              ] as const).map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => { if (!('disabled' in option && option.disabled)) setMatchingMode(option.value); }}
-                  aria-pressed={matchingMode === option.value}
-                  disabled={'disabled' in option && option.disabled}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'flex-start',
-                    padding: '0.75rem 1rem',
-                    border: matchingMode === option.value ? '2px solid var(--color-success)' : '1px solid var(--color-border)',
-                    borderRadius: '8px',
-                    background: matchingMode === option.value ? 'rgba(22, 163, 106, 0.1)' : 'var(--color-surface)',
-                    opacity: 'disabled' in option && option.disabled ? 0.5 : 1,
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    width: '100%',
-                    boxSizing: 'border-box',
-                  }}
+          {/* MLP Tournament Settings */}
+          {gameMode === 'mlp' && (
+            <div className="create-session__field" style={{ border: '1px solid var(--color-border)', borderRadius: '8px', padding: '1rem', marginTop: '0.5rem' }}>
+              <h3 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--color-text-primary)' }}>MLP Tournament Settings</h3>
+              
+              <div className="create-session__field">
+                <label htmlFor="mlp-team-count">Number of Teams</label>
+                <input
+                  id="mlp-team-count"
+                  type="number"
+                  min={2}
+                  max={32}
+                  value={mlpConfig.teamCount}
+                  onChange={(e) => setMlpConfig(prev => ({ ...prev, teamCount: Math.max(2, Number(e.target.value) || 2) }))}
+                  className="create-session__input"
+                />
+                <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
+                  Each team needs 2M + 2F players ({mlpConfig.teamCount} teams = {mlpConfig.teamCount * 2}M + {mlpConfig.teamCount * 2}F needed)
+                </p>
+              </div>
+
+              <div className="create-session__field">
+                <label htmlFor="mlp-game-to">Games Played To</label>
+                <select
+                  id="mlp-game-to"
+                  value={mlpConfig.gameTo}
+                  onChange={(e) => setMlpConfig(prev => ({ ...prev, gameTo: Number(e.target.value) as 11 | 15 }))}
+                  className="create-session__input"
                 >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    {matchingMode === option.value && (
-                      <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>✓</span>
-                    )}
-                    <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text-primary)' }}>
-                      {option.label}
-                    </span>
-                    {option.badge && (
-                      <span style={{
-                        fontSize: '0.65rem',
-                        fontWeight: 700,
-                        color: '#fff',
-                        background: 'var(--color-success)',
-                        padding: '0.1rem 0.4rem',
-                        borderRadius: '3px',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px',
-                      }}>
-                        {option.badge}
-                      </span>
-                    )}
-                  </span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
-                    {option.desc}
-                  </span>
-                </button>
-              ))}
+                  <option value={11}>11 points</option>
+                  <option value={15}>15 points</option>
+                </select>
+              </div>
+
+              <div className="create-session__field">
+                <label htmlFor="mlp-dreambreaker">DreamBreaker</label>
+                <select
+                  id="mlp-dreambreaker"
+                  value={mlpConfig.dreamBreakerEnabled ? 'on' : 'off'}
+                  onChange={(e) => setMlpConfig(prev => ({ ...prev, dreamBreakerEnabled: e.target.value === 'on' }))}
+                  className="create-session__input"
+                >
+                  <option value="on">Enabled (at 2-2 tie)</option>
+                  <option value="off">Disabled</option>
+                </select>
+              </div>
+
+              {mlpConfig.dreamBreakerEnabled && (
+                <div className="create-session__field">
+                  <label htmlFor="mlp-dreambreaker-to">DreamBreaker Played To</label>
+                  <select
+                    id="mlp-dreambreaker-to"
+                    value={mlpConfig.dreamBreakerTo}
+                    onChange={(e) => setMlpConfig(prev => ({ ...prev, dreamBreakerTo: Number(e.target.value) }))}
+                    className="create-session__input"
+                  >
+                    <option value={21}>21 points</option>
+                    <option value={15}>15 points</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="create-session__field">
+                <label htmlFor="mlp-third-place">Third Place Playoff</label>
+                <select
+                  id="mlp-third-place"
+                  value={mlpConfig.thirdPlacePlayoff ? 'on' : 'off'}
+                  onChange={(e) => setMlpConfig(prev => ({ ...prev, thirdPlacePlayoff: e.target.value === 'on' }))}
+                  className="create-session__input"
+                >
+                  <option value="on">Enabled</option>
+                  <option value="off">Disabled (joint 3rd place)</option>
+                </select>
+              </div>
             </div>
-          </div>
+          )}
+
+          {gameMode !== 'mlp' && (
+            <div className="create-session__field">
+              <label>Match Making Mode</label>
+              <p className="create-session__helper" style={{ marginBottom: '0.75rem' }}>
+                Controls how the system selects and pairs players for each match. Choose the style that best fits the energy of your session.
+              </p>
+              <div role="radiogroup" aria-label="Match making mode" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {([
+                  { value: 'casual', label: 'Casual', badge: null, desc: 'Every player faces a fresh opponent each round. Perfect for social sessions where variety and fun matter more than competition.' },
+                  { value: 'balanced', label: 'Smart', badge: 'COMING SOON', desc: 'Equal court time for everyone with skill-balanced teams. The algorithm ensures fair play while keeping matches competitive. Best for most open play sessions.', disabled: true },
+                  { value: 'competitive', label: 'Competitive', badge: 'COMING SOON', desc: 'Skill rating drives all matchups. Players are grouped by ability for the tightest possible games. Repeat opponents may occur.', disabled: true },
+                ] as const).map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => { if (!('disabled' in option && option.disabled)) setMatchingMode(option.value); }}
+                    aria-pressed={matchingMode === option.value}
+                    disabled={'disabled' in option && option.disabled}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      padding: '0.75rem 1rem',
+                      border: matchingMode === option.value ? '2px solid var(--color-success)' : '1px solid var(--color-border)',
+                      borderRadius: '8px',
+                      background: matchingMode === option.value ? 'rgba(22, 163, 106, 0.1)' : 'var(--color-surface)',
+                      opacity: 'disabled' in option && option.disabled ? 0.5 : 1,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      width: '100%',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      {matchingMode === option.value && (
+                        <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>✓</span>
+                      )}
+                      <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--color-text-primary)' }}>
+                        {option.label}
+                      </span>
+                      {option.badge && (
+                        <span style={{
+                          fontSize: '0.65rem',
+                          fontWeight: 700,
+                          color: '#fff',
+                          background: 'var(--color-success)',
+                          padding: '0.1rem 0.4rem',
+                          borderRadius: '3px',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px',
+                        }}>
+                          {option.badge}
+                        </span>
+                      )}
+                    </span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
+                      {option.desc}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Player Check-In Card */}
@@ -508,6 +626,21 @@ function CreateSession() {
                 ))}
               </select>
             </div>
+
+            {gameMode === 'mlp' && (
+              <div className="create-session__field create-session__field--inline">
+                <label htmlFor="player-gender">Gender</label>
+                <select
+                  id="player-gender"
+                  value={playerGender['__new__'] ?? 'male'}
+                  onChange={(e) => setPlayerGender(prev => ({ ...prev, '__new__': e.target.value as PlayerGender }))}
+                  className="create-session__input"
+                >
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
+              </div>
+            )}
 
             <button
               type="button"
@@ -607,6 +740,27 @@ function CreateSession() {
                       ))}
                     </span>
                   </div>
+
+                  {/* Gender selector for MLP mode */}
+                  {gameMode === 'mlp' && (
+                    <select
+                      value={playerGender[player.localId] ?? 'male'}
+                      onChange={(e) => setPlayerGender(prev => ({ ...prev, [player.localId]: e.target.value as PlayerGender }))}
+                      style={{
+                        padding: '0.2rem 0.4rem',
+                        borderRadius: '4px',
+                        border: '1px solid var(--color-border)',
+                        fontSize: '0.75rem',
+                        background: 'var(--color-surface)',
+                        color: 'var(--color-text-primary)',
+                        cursor: 'pointer',
+                      }}
+                      aria-label={`Gender for ${player.name}`}
+                    >
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                    </select>
+                  )}
 
                   {/* Status: pending, pair, or paired — same slot */}
                   {!player.checkedIn ? (
@@ -713,6 +867,25 @@ function CreateSession() {
                 </li>
               ))}
             </ul>
+          )}
+
+          {/* MLP Gender Summary */}
+          {gameMode === 'mlp' && pendingPlayers.length > 0 && (
+            <div style={{ marginTop: '0.75rem', padding: '0.75rem', borderRadius: '8px', background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+              <div style={{ display: 'flex', gap: '1rem', fontSize: '0.85rem' }}>
+                <span>
+                  <span style={{ fontWeight: 600, color: '#3b82f6' }}>♂ Male:</span>{' '}
+                  {pendingPlayers.filter(p => (playerGender[p.localId] ?? 'male') === 'male').length}
+                </span>
+                <span>
+                  <span style={{ fontWeight: 600, color: '#ec4899' }}>♀ Female:</span>{' '}
+                  {pendingPlayers.filter(p => playerGender[p.localId] === 'female').length}
+                </span>
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.5rem' }}>
+                Need at least 2M + 2F per team ({mlpConfig.teamCount} teams = {mlpConfig.teamCount * 2}M + {mlpConfig.teamCount * 2}F)
+              </p>
+            </div>
           )}
 
           {/* Pair selected players button */}

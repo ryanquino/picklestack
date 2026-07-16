@@ -56,10 +56,10 @@ export function computeSessionAwards(sessionId: string): SessionAward[] {
     return pairPartnerName.get(playerId) || undefined;
   }
 
-  // 1. MVP — Highest win rate (min 3 matches)
+  // 1. MVP — Highest win rate (min 3 matches), tiebreak: matchesPlayed desc, pointDifferential desc
   const mvpEligible = stats.filter(s => s.matchesPlayed >= 3);
   if (mvpEligible.length > 0) {
-    const mvp = mvpEligible.sort((a, b) => b.winRate - a.winRate || b.matchesPlayed - a.matchesPlayed)[0];
+    const mvp = mvpEligible.sort((a, b) => b.winRate - a.winRate || b.matchesPlayed - a.matchesPlayed || b.pointDifferential - a.pointDifferential)[0];
     awards.push({
       id: 'mvp',
       icon: '🏆',

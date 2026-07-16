@@ -8,17 +8,20 @@ import * as matchResultService from './services/matchResultService';
 import * as achievementsService from './services/achievementsService';
 import { computeSessionAwards } from './services/sessionAwardsService';
 import { computeSessionHighlights } from './services/highlightsService';
+import { determineMvp } from './services/leaderboardService';
 import * as ratingService from './services/ratingService';
 import * as fixedPairService from './services/fixedPairService';
 import { computeSessionDiversity } from './services/diversityService';
 import { computeWaitEstimates } from './services/queueEstimatorService';
 import { computePaceMetrics } from './services/paceService';
 import { computeMatchQuality, getSessionQualityMetrics } from './services/qualityScorerService';
+import * as mlpTournament from './services/mlpTournamentService';
 import {
   getActiveMatchByCourt,
   getActiveMatchesBySession,
   getPlayerById,
   getPlayersBySession,
+  getQueueBySession,
   getCompletedMatchCountBySession,
   getSessionById,
   getMatchesByPlayerId,
@@ -86,7 +89,7 @@ app.post('/api/sessions', (req: Request, res: Response, next: NextFunction) => {
 app.put('/api/sessions/:sessionId/settings', (req: Request, res: Response, next: NextFunction) => {
   try {
     const sessionId = req.params.sessionId as string;
-    const { name, courtCount, courtName, sessionType, gameMode, matchingMode, sessionDurationHours } = req.body;
+    const { name, courtCount, courtName, sessionType, gameMode, matchingMode, sessionDurationHours, mlpConfig } = req.body;
     sessionService.updateSessionSettings(sessionId, {
       name,
       courtCount,
@@ -95,6 +98,7 @@ app.put('/api/sessions/:sessionId/settings', (req: Request, res: Response, next:
       gameMode,
       matchingMode,
       sessionDurationHours: sessionDurationHours ?? 4,
+      mlpConfig: mlpConfig ?? undefined,
     });
     res.status(200).json({ success: true });
   } catch (err) {
@@ -110,6 +114,138 @@ app.get('/api/sessions/:sessionId/settings', (req: Request, res: Response, next:
     const sessionId = req.params.sessionId as string;
     const settings = sessionService.getSessionSettings(sessionId);
     res.json(settings);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/sessions/:sessionId/join-info — Public endpoint for player self-check-in page
+ * Returns minimal session info needed for the join screen.
+ */
+app.get('/api/sessions/:sessionId/join-info', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const session = getSessionById(sessionId);
+    if (!session) {
+      throw new NotFoundError('Session not found');
+    }
+    if (session.status === 'ended') {
+      res.status(410).json({ error: 'This session has ended. No new check-ins are accepted.' });
+      return;
+    }
+    const playerCount = getPlayersBySession(sessionId).length;
+    res.json({
+      sessionId: session.id,
+      name: session.name,
+      status: session.status,
+      gameMode: session.game_mode,
+      matchingMode: session.matching_mode,
+      playerCount,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/sessions/:sessionId/bench-players — Public endpoint for join page autocomplete.
+ * Returns players who are in the session but not in queue and not in active matches.
+ */
+app.get('/api/sessions/:sessionId/bench-players', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const session = getSessionById(sessionId);
+    if (!session) {
+      throw new NotFoundError('Session not found');
+    }
+    if (session.status === 'ended') {
+      res.json([]);
+      return;
+    }
+
+    const allPlayers = getPlayersBySession(sessionId);
+    const queueEntries = getQueueBySession(sessionId);
+    const queuePlayerIds = new Set<string>(queueEntries.map((e) => e.player_id));
+
+    const activeMatches = getActiveMatchesBySession(sessionId);
+    const activeMatchPlayerIds = new Set<string>();
+    for (const match of activeMatches) {
+      const pids: string[] = JSON.parse(match.player_ids);
+      for (const pid of pids) activeMatchPlayerIds.add(pid);
+    }
+
+    // Exclude players in fixed pairs — they're effectively in queue even if
+    // only the anchor has a queue_entries row.
+    const pairedPlayerIds = new Set<string>();
+    const fixedPairs = fixedPairService.getFixedPairsBySession(sessionId);
+    for (const pair of fixedPairs) {
+      pairedPlayerIds.add(pair.player1Id);
+      pairedPlayerIds.add(pair.player2Id);
+    }
+
+    const benchPlayers = allPlayers
+      .filter((p) => !queuePlayerIds.has(p.id) && !activeMatchPlayerIds.has(p.id) && !pairedPlayerIds.has(p.id))
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+      }));
+
+    res.json(benchPlayers);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/sessions/:sessionId/all-players — All players with status (bench, queue, playing).
+ * Used for the partner autocomplete dropdown on the join page.
+ */
+app.get('/api/sessions/:sessionId/all-players', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const session = getSessionById(sessionId);
+    if (!session) {
+      throw new NotFoundError('Session not found');
+    }
+    if (session.status === 'ended') {
+      res.json([]);
+      return;
+    }
+
+    const allPlayers = getPlayersBySession(sessionId);
+    const queueEntries = getQueueBySession(sessionId);
+    const queuePlayerIds = new Set<string>(queueEntries.map((e) => e.player_id));
+
+    const activeMatches = getActiveMatchesBySession(sessionId);
+    const activeMatchPlayerIds = new Set<string>();
+    for (const match of activeMatches) {
+      const pids: string[] = JSON.parse(match.player_ids);
+      for (const pid of pids) activeMatchPlayerIds.add(pid);
+    }
+
+    // Players in fixed pairs are effectively "in queue" even if only the anchor
+    // has a queue_entries row.  Build a set of all player IDs that belong to any
+    // active fixed pair so we can report them correctly.
+    const pairedPlayerIds = new Set<string>();
+    const fixedPairs = fixedPairService.getFixedPairsBySession(sessionId);
+    for (const pair of fixedPairs) {
+      pairedPlayerIds.add(pair.player1Id);
+      pairedPlayerIds.add(pair.player2Id);
+    }
+
+    const players = allPlayers.map((p) => ({
+      id: p.id,
+      name: p.name,
+      gender: p.gender ?? null,
+      status: activeMatchPlayerIds.has(p.id)
+        ? 'playing'
+        : (queuePlayerIds.has(p.id) || pairedPlayerIds.has(p.id))
+          ? 'queue'
+          : 'bench',
+    }));
+
+    res.json(players);
   } catch (err) {
     next(err);
   }
@@ -203,6 +339,9 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response, next: NextFunc
     const diversityMap = computeSessionDiversity(sessionId);
     const diversity: Record<string, number> = Object.fromEntries(diversityMap);
 
+    // Determine MVP using shared algorithm
+    const mvpPlayerId = determineMvp(playerStats);
+
     const waitEstimatesList = computeWaitEstimates(sessionId);
     const waitEstimates: Record<string, number | null> = {};
     for (const entry of waitEstimatesList) {
@@ -235,6 +374,7 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response, next: NextFunc
         return {
           id: p.id,
           name: p.name,
+          gender: p.gender ?? null,
           starRating: stats?.starRating ?? 3,
           wins: stats?.wins ?? 0,
           losses: stats?.losses ?? 0,
@@ -260,6 +400,7 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response, next: NextFunc
       sessionAwards: computeSessionAwards(sessionId),
       highlights: computeSessionHighlights(sessionId),
       benchPlayers,
+      mvpPlayerId,
       totalCompletedMatches: getCompletedMatchCountBySession(sessionId),
       nextMatchPlayerIds: courtService.previewNextMatch(sessionId),
       diversity,
@@ -341,15 +482,8 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
       achievementsByPlayer.set(a.playerId, list);
     }
 
-    // Determine MVP: highest win rate among players with 3+ matches
-    let mvpPlayerId: string | null = null;
-    let mvpWinRate = -1;
-    for (const stat of playerStats) {
-      if (stat.matchesPlayed >= 3 && stat.winRate > mvpWinRate) {
-        mvpWinRate = stat.winRate;
-        mvpPlayerId = stat.playerId;
-      }
-    }
+    // Determine MVP using shared algorithm
+    const mvpPlayerId = determineMvp(playerStats);
 
     // Format queue with "up next" marking for first 4, plus player stats
     const formattedQueue = queue.map((entry, index) => {
@@ -359,6 +493,10 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
         playerId: entry.playerId,
         playerName: entry.playerName,
         position: entry.position,
+        isPairSlot: entry.isPairSlot,
+        pairId: entry.pairId,
+        partnerPlayerId: entry.partnerPlayerId,
+        partnerPlayerName: entry.partnerPlayerName,
         isUpNext: index < 4,
         rating: stats?.rating ?? 1000,
         starRating: stats?.starRating ?? 3,
@@ -477,6 +615,7 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
       completedMatches,
       totalCompletedMatches: getCompletedMatchCountBySession(sessionId),
       waitEstimates,
+      mvpPlayerId,
       nextMatchPlayerIds: courtService.previewNextMatch(sessionId),
       onDeckPlayerIds: getOnDeckPlayerIds(
         queue.map(e => ({ playerId: e.playerId, position: e.position })),
@@ -520,7 +659,7 @@ app.post('/api/sessions/:sessionId/courts/:courtNumber/replace', (req: Request, 
 app.post('/api/sessions/:sessionId/players', (req: Request, res: Response, next: NextFunction) => {
   try {
     const sessionId = req.params.sessionId as string;
-    const { name, starRating, skipQueue } = req.body;
+    const { name, starRating, skipQueue, partnerId, gender } = req.body;
 
     // Validate starRating if provided
     if (starRating !== undefined && (![1, 2, 3, 4, 5].includes(starRating))) {
@@ -530,15 +669,28 @@ app.post('/api/sessions/:sessionId/players', (req: Request, res: Response, next:
     let player;
     if (skipQueue) {
       // Add player to session without adding to queue (bench player)
-      player = queueService.addPlayerToSession(sessionId, name);
+      player = queueService.addPlayerToSession(sessionId, name, gender);
     } else {
-      player = queueService.addPlayer(sessionId, name);
+      player = queueService.addPlayer(sessionId, name, gender);
     }
 
     // Initialize player rating based on star rating
     ratingService.initializePlayerRating(sessionId, player.id, starRating as StarRating | undefined);
 
-    res.status(201).json(player);
+    // If a partner was specified, attempt to create a fixed pair
+    let pair = null;
+    let pairError: string | null = null;
+    if (partnerId && !skipQueue) {
+      try {
+        pair = fixedPairService.createFixedPair(sessionId, player.id, partnerId);
+      } catch (err) {
+        // Pairing may fail (partner already paired, in match, etc.)
+        // Player is still checked in — surface the reason to the client
+        pairError = err instanceof Error ? err.message : 'Pairing failed';
+      }
+    }
+
+    res.status(201).json({ ...player, pairId: pair?.id ?? null, pairError });
   } catch (err) {
     next(err);
   }
@@ -551,8 +703,70 @@ app.post('/api/sessions/:sessionId/players/:playerId/join-queue', (req: Request,
   try {
     const sessionId = req.params.sessionId as string;
     const playerId = req.params.playerId as string;
+    const { starRating } = req.body ?? {};
+
     queueService.addPlayerToQueue(sessionId, playerId);
+
+    if (starRating !== undefined && [1, 2, 3, 4, 5].includes(starRating)) {
+      const existing = getPlayerRating(playerId, sessionId);
+      if (existing) {
+        upsertPlayerRating({ ...existing, star_rating: starRating });
+      } else {
+        ratingService.initializePlayerRating(sessionId, playerId, starRating as StarRating);
+      }
+    }
+
     res.status(200).json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/sessions/:sessionId/players/:playerId/status — Lightweight bench check.
+ * Returns { status: 'bench' | 'queue' | 'playing' | 'not-found' }
+ */
+app.get('/api/sessions/:sessionId/players/:playerId/status', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const playerId = req.params.playerId as string;
+
+    const session = getSessionById(sessionId);
+    if (!session || session.status === 'ended') {
+      res.json({ status: 'not-found' });
+      return;
+    }
+
+    const player = getPlayerById(playerId);
+    if (!player) {
+      res.json({ status: 'not-found' });
+      return;
+    }
+
+    const queueEntries = getQueueBySession(sessionId);
+    if (queueEntries.some((e) => e.player_id === playerId)) {
+      res.json({ status: 'queue' });
+      return;
+    }
+
+    // Non-anchor players in a fixed pair don't have their own queue entry
+    // but are effectively in queue.
+    const fixedPair = fixedPairService.getFixedPairByPlayerId(sessionId, playerId);
+    if (fixedPair) {
+      res.json({ status: 'queue' });
+      return;
+    }
+
+    const activeMatches = getActiveMatchesBySession(sessionId);
+    for (const match of activeMatches) {
+      const pids: string[] = JSON.parse(match.player_ids);
+      if (pids.includes(playerId)) {
+        res.json({ status: 'playing' });
+        return;
+      }
+    }
+
+    res.json({ status: 'bench' });
   } catch (err) {
     next(err);
   }
@@ -664,6 +878,24 @@ app.post('/api/sessions/:sessionId/courts/:courtNumber/start', (req: Request, re
 });
 
 /**
+ * POST /api/sessions/:sessionId/courts/:courtNumber/start-manual — Start a match with manually selected players
+ */
+app.post('/api/sessions/:sessionId/courts/:courtNumber/start-manual', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const courtNumber = parseInt(req.params.courtNumber as string, 10);
+    const { playerIds } = req.body;
+    if (!Array.isArray(playerIds) || playerIds.length === 0) {
+      throw new ValidationError('playerIds array is required', ['playerIds']);
+    }
+    const match = courtService.startMatchManual(sessionId, courtNumber, playerIds);
+    res.status(201).json(match);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * POST /api/sessions/:sessionId/courts/:courtNumber/complete — Complete a match on a court
  */
 app.post('/api/sessions/:sessionId/courts/:courtNumber/complete', (req: Request, res: Response, next: NextFunction) => {
@@ -716,15 +948,8 @@ app.post('/api/sessions/:sessionId/end', (req: Request, res: Response, next: Nex
       achievementsByPlayer.set(a.playerId, list);
     }
 
-    // Determine MVP: highest win rate among players with 3+ matches
-    let mvpPlayerId: string | null = null;
-    let mvpWinRate = -1;
-    for (const stat of playerStats) {
-      if (stat.matchesPlayed >= 3 && stat.winRate > mvpWinRate) {
-        mvpWinRate = stat.winRate;
-        mvpPlayerId = stat.playerId;
-      }
-    }
+    // Determine MVP using shared algorithm
+    const mvpPlayerId = determineMvp(playerStats);
 
     // Sort leaderboard: win rate desc → matches played desc → point differential desc
     const sorted = [...playerStats].sort((a, b) => {
@@ -775,7 +1000,7 @@ app.put('/api/sessions/:sessionId/matches/:matchId/result', (req: Request, res: 
   try {
     const sessionId = req.params.sessionId as string;
     const matchId = req.params.matchId as string;
-    const { winningTeam } = req.body;
+    const { winningTeam, team1Score, team2Score } = req.body;
 
     // Validate session exists
     const session = getSessionById(sessionId);
@@ -788,13 +1013,93 @@ app.put('/api/sessions/:sessionId/matches/:matchId/result', (req: Request, res: 
       throw new ValidationError('Cannot update results after session has ended', ['sessionId']);
     }
 
-    // Validate winningTeam
-    if (winningTeam !== 'team1' && winningTeam !== 'team2') {
+    // Validate winningTeam if provided
+    if (winningTeam !== undefined && winningTeam !== 'team1' && winningTeam !== 'team2') {
       throw new ValidationError("winningTeam must be 'team1' or 'team2'", ['winningTeam']);
     }
 
-    const result = matchResultService.updateMatchResult(matchId, winningTeam);
+    // Validate scores if provided (both must be present)
+    let parsedTeam1: number | undefined;
+    let parsedTeam2: number | undefined;
+    if (team1Score !== undefined || team2Score !== undefined) {
+      if (team1Score === undefined || team2Score === undefined) {
+        throw new ValidationError('Both team1Score and team2Score are required to update scores', [
+          'team1Score',
+          'team2Score',
+        ]);
+      }
+      parsedTeam1 = Number(team1Score);
+      parsedTeam2 = Number(team2Score);
+      if (!Number.isInteger(parsedTeam1) || !Number.isInteger(parsedTeam2) ||
+          parsedTeam1 < 0 || parsedTeam2 < 0) {
+        throw new ValidationError('Scores must be non-negative integers', [
+          'team1Score',
+          'team2Score',
+        ]);
+      }
+    }
+
+    const result = matchResultService.updateMatchResult(matchId, {
+      winningTeam,
+      team1Score: parsedTeam1,
+      team2Score: parsedTeam2,
+    });
     res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/sessions/:sessionId/match-results — List all completed match results
+ * for the session, with match (court, players) and score/winner info. Used by the
+ * Results panel so admins can review and correct scores/winners.
+ */
+app.get('/api/sessions/:sessionId/match-results', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+
+    const session = getSessionById(sessionId);
+    if (!session) {
+      throw new NotFoundError('Session not found');
+    }
+
+    const players = getPlayersBySession(sessionId);
+    const playerName = new Map(players.map(p => [p.id, p.name]));
+
+    const matches = getMatchesBySession(sessionId);
+    const matchById = new Map(matches.map(m => [m.id, m]));
+
+    const resultRows = getMatchResultsBySession(sessionId);
+
+    const results = resultRows
+      .map(row => {
+        const match = matchById.get(row.match_id);
+        if (!match) return null;
+        const playerIds: string[] = JSON.parse(match.player_ids);
+        const winnerIds: string[] = JSON.parse(row.winner_player_ids);
+        const winningTeam: 'team1' | 'team2' =
+          winnerIds.every(id => playerIds.slice(0, 2).includes(id)) ? 'team1' : 'team2';
+
+        return {
+          matchId: match.id,
+          courtNumber: match.court_number,
+          status: match.status,
+          playerIds,
+          playerNames: playerIds.map(id => playerName.get(id) ?? 'Unknown'),
+          team1PlayerIds: playerIds.slice(0, 2),
+          team2PlayerIds: playerIds.slice(2, 4),
+          team1Score: row.team1_score,
+          team2Score: row.team2_score,
+          winningTeam,
+          recordedAt: row.recorded_at,
+          updatedAt: row.updated_at,
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null)
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+    res.json(results);
   } catch (err) {
     next(err);
   }
@@ -887,12 +1192,8 @@ app.get('/api/sessions/:sessionId/leaderboard', (req: Request, res: Response, ne
       return a.playerName.localeCompare(b.playerName);
     });
 
-    // Determine MVP: highest win rate among players with 3+ matches
-    let mvpPlayerId: string | null = null;
-    const qualifiedPlayers = sorted.filter(s => s.matchesPlayed >= 3);
-    if (qualifiedPlayers.length > 0) {
-      mvpPlayerId = qualifiedPlayers[0].playerId;
-    }
+    // Determine MVP using shared algorithm
+    const mvpPlayerId = determineMvp(sorted);
 
     // Build leaderboard entries
     const leaderboard: LeaderboardEntry[] = sorted.map((stat, index) => {
@@ -1221,6 +1522,72 @@ app.put('/api/sessions/:sessionId/players/:playerId/star-rating', (req: Request,
   }
 });
 
+/**
+ * PUT /api/sessions/:sessionId/players/:playerId/gender — Update a player's gender
+ */
+app.put('/api/sessions/:sessionId/players/:playerId/gender', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const playerId = req.params.playerId as string;
+    const { gender } = req.body;
+
+    if (gender !== null && gender !== 'male' && gender !== 'female') {
+      throw new ValidationError('Gender must be "male", "female", or null', ['gender']);
+    }
+
+    const session = getSessionById(sessionId);
+    if (!session) {
+      throw new NotFoundError('Session not found');
+    }
+
+    const player = getPlayerById(playerId);
+    if (!player || player.session_id !== sessionId) {
+      throw new NotFoundError('Player not found in this session');
+    }
+
+    const db = getDb();
+    db.prepare('UPDATE players SET gender = ? WHERE id = ?').run(gender, playerId);
+
+    res.json({ success: true, gender });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * PUT /api/sessions/:sessionId/players/gender-bulk — Bulk update player genders
+ */
+app.put('/api/sessions/:sessionId/players/gender-bulk', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const { updates } = req.body;
+
+    if (!Array.isArray(updates)) {
+      throw new ValidationError('Requires updates array of { playerId, gender }', ['updates']);
+    }
+
+    const session = getSessionById(sessionId);
+    if (!session) {
+      throw new NotFoundError('Session not found');
+    }
+
+    const db = getDb();
+    const stmt = db.prepare('UPDATE players SET gender = ? WHERE id = ?');
+    let count = 0;
+    for (const u of updates) {
+      if (u.gender !== null && u.gender !== 'male' && u.gender !== 'female') continue;
+      const player = getPlayerById(u.playerId);
+      if (!player || player.session_id !== sessionId) continue;
+      stmt.run(u.gender, u.playerId);
+      count++;
+    }
+
+    res.json({ success: true, updated: count });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ============================================================
 // Achievements Routes
 // ============================================================
@@ -1240,6 +1607,297 @@ app.get('/api/sessions/:sessionId/achievements', (req: Request, res: Response, n
 
     const achievements = achievementsService.getSessionAchievementsAll(sessionId);
     res.json(achievements);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ============================================================
+// MLP Tournament Routes
+// ============================================================
+
+/**
+ * GET /api/sessions/:sessionId/tournament — Get full tournament state
+ */
+app.get('/api/sessions/:sessionId/tournament', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const session = getSessionById(sessionId);
+    if (!session) throw new NotFoundError('Session not found');
+
+    const teams = mlpTournament.getTeams(sessionId);
+    const brackets = mlpTournament.getBrackets(sessionId);
+    const config = mlpTournament.getMLPConfig(sessionId);
+    const isComplete = mlpTournament.isTournamentComplete(sessionId);
+    const champion = mlpTournament.getChampion(sessionId);
+    const rankings = mlpTournament.getTournamentRankings(sessionId);
+
+    // Enrich teams with player names
+    const players = getPlayersBySession(sessionId);
+    const playerMap = new Map(players.map((p: any) => [p.id, p.name]));
+    const enrichedTeams = teams.map((t: any) => ({
+      ...t,
+      player1Name: playerMap.get(t.player1Id) ?? 'Unknown',
+      player2Name: playerMap.get(t.player2Id) ?? 'Unknown',
+      player3Name: playerMap.get(t.player3Id) ?? 'Unknown',
+      player4Name: playerMap.get(t.player4Id) ?? 'Unknown',
+    }));
+
+    // Enrich brackets with team names
+    const teamMap = new Map(teams.map((t: any) => [t.id, t.name]));
+    const enrichedBrackets = brackets.map((b: any) => ({
+      ...b,
+      teamAName: b.teamAId ? teamMap.get(b.teamAId) ?? null : null,
+      teamBName: b.teamBId ? teamMap.get(b.teamBId) ?? null : null,
+      winnerTeamName: b.winnerTeamId ? teamMap.get(b.winnerTeamId) ?? null : null,
+    }));
+
+    // Get match results
+    const results = mlpTournament.getAllMLPMatchResults(sessionId);
+
+    res.json({
+      config,
+      teams: enrichedTeams,
+      brackets: enrichedBrackets,
+      results,
+      isComplete,
+      champion: champion ? {
+        ...champion,
+        player1Name: playerMap.get(champion.player1Id) ?? 'Unknown',
+        player2Name: playerMap.get(champion.player2Id) ?? 'Unknown',
+        player3Name: playerMap.get(champion.player3Id) ?? 'Unknown',
+        player4Name: playerMap.get(champion.player4Id) ?? 'Unknown',
+      } : null,
+      rankings: rankings.map((r: any) => ({
+        rank: r.rank,
+        team: {
+          ...r.team,
+          player1Name: playerMap.get(r.team.player1Id) ?? 'Unknown',
+          player2Name: playerMap.get(r.team.player2Id) ?? 'Unknown',
+          player3Name: playerMap.get(r.team.player3Id) ?? 'Unknown',
+          player4Name: playerMap.get(r.team.player4Id) ?? 'Unknown',
+        },
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/sessions/:sessionId/tournament/teams — Create a team manually
+ */
+app.post('/api/sessions/:sessionId/tournament/teams', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const session = getSessionById(sessionId);
+    if (!session) throw new NotFoundError('Session not found');
+
+    const { name, playerIds, seed } = req.body;
+    if (!name || !Array.isArray(playerIds) || playerIds.length !== 4) {
+      throw new ValidationError('Team requires a name and exactly 4 player IDs', ['name', 'playerIds']);
+    }
+
+    const team = mlpTournament.createTeam(sessionId, name, playerIds as [string, string, string, string], seed ?? 1);
+    res.status(201).json(team);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/sessions/:sessionId/tournament/teams/random — Create teams randomly from player pools
+ */
+app.post('/api/sessions/:sessionId/tournament/teams/random', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const session = getSessionById(sessionId);
+    if (!session) throw new NotFoundError('Session not found');
+
+    const { teamCount, malePlayerIds, femalePlayerIds } = req.body;
+    if (!teamCount || !Array.isArray(malePlayerIds) || !Array.isArray(femalePlayerIds)) {
+      throw new ValidationError('Requires teamCount, malePlayerIds, and femalePlayerIds', ['teamCount', 'malePlayerIds', 'femalePlayerIds']);
+    }
+
+    const teams = mlpTournament.createTeamsRandom(sessionId, teamCount, malePlayerIds, femalePlayerIds);
+    res.status(201).json(teams);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * PUT /api/sessions/:sessionId/tournament/teams/:teamId — Update a team
+ */
+app.put('/api/sessions/:sessionId/tournament/teams/:teamId', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const teamId = req.params.teamId as string;
+    const { name, playerIds } = req.body;
+
+    const team = mlpTournament.updateTeam(teamId, { name, playerIds: playerIds as [string, string, string, string] | undefined });
+    if (!team) throw new NotFoundError('Team not found');
+    res.json(team);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * DELETE /api/sessions/:sessionId/tournament/teams — Delete all teams
+ */
+app.delete('/api/sessions/:sessionId/tournament/teams', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    mlpTournament.deleteTeams(sessionId);
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * DELETE /api/sessions/:sessionId/tournament/teams/:teamId — Delete a single team
+ */
+app.delete('/api/sessions/:sessionId/tournament/teams/:teamId', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const teamId = req.params.teamId as string;
+    mlpTournament.deleteTeam(teamId);
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/sessions/:sessionId/tournament/bracket — Generate bracket
+ */
+app.post('/api/sessions/:sessionId/tournament/bracket', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const session = getSessionById(sessionId);
+    if (!session) throw new NotFoundError('Session not found');
+
+    const { teamIds } = req.body;
+    if (!Array.isArray(teamIds) || teamIds.length < 2) {
+      throw new ValidationError('Need at least 2 team IDs to generate a bracket', ['teamIds']);
+    }
+
+    const brackets = mlpTournament.generateBracket(sessionId, teamIds);
+    res.status(201).json(brackets);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/sessions/:sessionId/tournament/fix — Fix existing bracket byes
+ */
+app.post('/api/sessions/:sessionId/tournament/fix', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const session = getSessionById(sessionId);
+    if (!session) throw new NotFoundError('Session not found');
+
+    const changed = mlpTournament.fixSemifinalByes(sessionId);
+    res.json({ changed });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/sessions/:sessionId/tournament/advance — Start the next round
+ */
+app.post('/api/sessions/:sessionId/tournament/advance', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const session = getSessionById(sessionId);
+    if (!session) throw new NotFoundError('Session not found');
+
+    const brackets = mlpTournament.startNextRound(sessionId);
+    res.json(brackets);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/sessions/:sessionId/tournament/match/:bracketId/complete — Complete an MLP match
+ */
+app.post('/api/sessions/:sessionId/tournament/match/:bracketId/complete', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const bracketId = req.params.bracketId as string;
+    const { matchId, subGames, winnerTeamId, dreamBreakerPlayed } = req.body;
+
+    if (!matchId || !Array.isArray(subGames) || !winnerTeamId) {
+      throw new ValidationError('Requires matchId, subGames array, and winnerTeamId', ['matchId', 'subGames', 'winnerTeamId']);
+    }
+
+    const result = mlpTournament.completeMLPMatch(matchId, bracketId, subGames, winnerTeamId, dreamBreakerPlayed ?? false);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * PUT /api/sessions/:sessionId/tournament/match/:bracketId — Update a completed match
+ */
+app.put('/api/sessions/:sessionId/tournament/match/:bracketId', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const bracketId = req.params.bracketId as string;
+    const { subGames, winnerTeamId, dreamBreakerPlayed } = req.body;
+
+    if (!Array.isArray(subGames) || !winnerTeamId) {
+      throw new ValidationError('Requires subGames array and winnerTeamId', ['subGames', 'winnerTeamId']);
+    }
+
+    const result = mlpTournament.updateMLPMatch(bracketId, subGames, winnerTeamId, dreamBreakerPlayed ?? false);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/sessions/:sessionId/tournament/start — Start next match on an available court
+ */
+app.post('/api/sessions/:sessionId/tournament/start', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const { courtNumber } = req.body;
+
+    if (!courtNumber) {
+      throw new ValidationError('Requires courtNumber', ['courtNumber']);
+    }
+
+    // Find the next match to schedule
+    const nextBracket = mlpTournament.getNextMatch(sessionId);
+    if (!nextBracket) {
+      throw new ValidationError('No matches available to start', ['bracketId']);
+    }
+
+    // Get team player IDs
+    const teamA = mlpTournament.getTeam(nextBracket.teamAId!);
+    const teamB = mlpTournament.getTeam(nextBracket.teamBId!);
+    if (!teamA || !teamB) {
+      throw new ValidationError('Teams not found for this match', ['teamAId', 'teamBId']);
+    }
+
+    // Create the match with all 8 player IDs (teamA then teamB)
+    const playerIds = [
+      teamA.player1Id, teamA.player2Id, teamA.player3Id, teamA.player4Id,
+      teamB.player1Id, teamB.player2Id, teamB.player3Id, teamB.player4Id,
+    ];
+
+    // Start the match using the existing court service
+    const match = courtService.startMatchManual(sessionId, courtNumber, playerIds);
+
+    // Link the match to the bracket
+    const db = getDb();
+    db.prepare('UPDATE tournament_brackets SET match_id = ? WHERE id = ?').run(match.id, nextBracket.id);
+
+    res.status(201).json({ match, bracket: { ...nextBracket, matchId: match.id } });
   } catch (err) {
     next(err);
   }

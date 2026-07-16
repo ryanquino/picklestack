@@ -6,6 +6,7 @@ import QueuePanel from '../components/QueuePanel';
 import ScrollToTopButton from '../components/ScrollToTopButton';
 import HighlightsTicker from '../components/HighlightsTicker';
 import CourtsPanel from '../components/CourtsPanel';
+import ResultsPanel from '../components/ResultsPanel';
 import StatsBar from '../components/StatsBar';
 import SessionHeader from '../components/SessionHeader';
 import Navbar from '../components/Navbar';
@@ -15,7 +16,9 @@ import SessionAwards from '../components/SessionAwards';
 import QRCodeDisplay from '../components/QRCodeDisplay';
 import PlayerProfileCard from '../components/PlayerProfileCard';
 import SessionSettingsModal from '../components/SessionSettingsModal';
+import ManualMatchModal from '../components/ManualMatchModal';
 import ErrorBoundary from '../components/ErrorBoundary';
+import TournamentDashboard from '../components/TournamentDashboard';
 import { AchievementNotification } from '../components/AchievementBadge';
 import type { PairingMode, Achievement, LeaderboardEntry, StarRating, GameMode, MatchingMode, FixedPair } from '../types';
 
@@ -47,6 +50,7 @@ interface PlayerStatsData {
   matchesPlayed: number;
   winRate: number;
   streak: number;
+  gender?: string | null;
 }
 
 interface PaceMetrics {
@@ -114,8 +118,9 @@ interface SessionState {
   qualityMetrics?: SessionQualityMetrics;
   diversity?: Record<string, number>;
   waitEstimates?: Record<string, number | null>;
+  mvpPlayerId?: string | null;
   highlights?: Array<{ id: string; emoji: string; text: string; matchNumber: number; timestamp: string }>;
-  benchPlayers?: Array<{ id: string; name: string; starRating: number; wins: number; losses: number; matchesPlayed: number }>;
+  benchPlayers?: Array<{ id: string; name: string; gender?: string | null; starRating: number; wins: number; losses: number; matchesPlayed: number }>;
 }
 
 interface AchievementNotificationItem {
@@ -137,7 +142,10 @@ function OrganizerDashboard() {
   const [selectedPlayer, setSelectedPlayer] = useState<{ playerId: string } | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showSharePanel, setShowSharePanel] = useState(false);
+  const [shareTab, setShareTab] = useState<'join' | 'watch'>('join');
+  const [copiedJoin, setCopiedJoin] = useState(false);
   const [fixedPairs, setFixedPairs] = useState<FixedPair[]>([]);
+  const [manualMatchCourt, setManualMatchCourt] = useState<number | null>(null);
   const previousAchievementsRef = useRef<Achievement[]>([]);
 
   const loadSession = useCallback(async () => {
@@ -245,6 +253,15 @@ function OrganizerDashboard() {
     loadSession();
   }, [loadSession]);
 
+  // Auto-refresh session data every 5 seconds
+  useEffect(() => {
+    if (loading || error) return;
+    const interval = setInterval(() => {
+      loadSession();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [loading, error, loadSession]);
+
   function handleDismissNotification(id: string) {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   }
@@ -328,7 +345,6 @@ function OrganizerDashboard() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback: select text in a temporary input
       const input = document.createElement('input');
       input.value = url;
       document.body.appendChild(input);
@@ -337,6 +353,24 @@ function OrganizerDashboard() {
       document.body.removeChild(input);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  }
+
+  async function handleCopyJoinUrl() {
+    const url = `${window.location.origin}/join/${sessionId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedJoin(true);
+      setTimeout(() => setCopiedJoin(false), 2000);
+    } catch {
+      const input = document.createElement('input');
+      input.value = url;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+      setCopiedJoin(true);
+      setTimeout(() => setCopiedJoin(false), 2000);
     }
   }
 
@@ -398,15 +432,7 @@ function OrganizerDashboard() {
     achievementsByPlayer.set(a.playerId, list);
   }
 
-  // Determine MVP: highest win rate among players with 3+ matches
-  let mvpPlayerId: string | null = null;
-  let mvpWinRate = -1;
-  for (const stat of (state.playerStats ?? [])) {
-    if (stat.matchesPlayed >= 3 && stat.winRate > mvpWinRate) {
-      mvpWinRate = stat.winRate;
-      mvpPlayerId = stat.playerId;
-    }
-  }
+  const mvpPlayerId = state.mvpPlayerId ?? null;
 
   const enrichedQueue: EnrichedQueueEntry[] = state.queue.map((entry) => {
     const stats = statsMap.get(entry.playerId);
@@ -535,7 +561,20 @@ function OrganizerDashboard() {
             <div className="share-popup__overlay" onClick={() => setShowSharePanel(false)}>
               <div className="share-popup card" onClick={(e) => e.stopPropagation()}>
                 <div className="share-popup__header">
-                  <h3>Share Live View</h3>
+                  <div className="share-popup__tabs">
+                    <button
+                      className={`share-popup__tab${shareTab === 'join' ? ' share-popup__tab--active' : ''}`}
+                      onClick={() => setShareTab('join')}
+                    >
+                      📱 Join
+                    </button>
+                    <button
+                      className={`share-popup__tab${shareTab === 'watch' ? ' share-popup__tab--active' : ''}`}
+                      onClick={() => setShareTab('watch')}
+                    >
+                      👁 Watch
+                    </button>
+                  </div>
                   <button
                     className="share-popup__close"
                     onClick={() => setShowSharePanel(false)}
@@ -545,70 +584,105 @@ function OrganizerDashboard() {
                   </button>
                 </div>
                 <div className="share-popup__body">
-                  <QRCodeDisplay url={`${window.location.origin}/live/${sessionId}`} />
-                  <div className="live-url-bar">
-                    <code className="live-url-bar__url">
-                      {`${window.location.origin}/live/${sessionId}`}
-                    </code>
-                    <button
-                      onClick={handleCopyLiveUrl}
-                      aria-label="Copy live view URL"
-                      className={`live-url-bar__copy-btn${copied ? ' live-url-bar__copy-btn--copied' : ''}`}
-                    >
-                      {copied ? 'Copied!' : 'Copy'}
-                    </button>
-                  </div>
+                  {shareTab === 'join' ? (
+                    <>
+                      <p className="share-popup__hint">Players scan to check in and join the queue</p>
+                      <QRCodeDisplay url={`${window.location.origin}/join/${sessionId}`} />
+                      <div className="live-url-bar">
+                        <code className="live-url-bar__url">
+                          {`${window.location.origin}/join/${sessionId}`}
+                        </code>
+                        <button
+                          onClick={handleCopyJoinUrl}
+                          aria-label="Copy join URL"
+                          className={`live-url-bar__copy-btn${copiedJoin ? ' live-url-bar__copy-btn--copied' : ''}`}
+                        >
+                          {copiedJoin ? 'Copied!' : 'Copy'}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="share-popup__hint">Spectators scan to watch the live session</p>
+                      <QRCodeDisplay url={`${window.location.origin}/live/${sessionId}`} />
+                      <div className="live-url-bar">
+                        <code className="live-url-bar__url">
+                          {`${window.location.origin}/live/${sessionId}`}
+                        </code>
+                        <button
+                          onClick={handleCopyLiveUrl}
+                          aria-label="Copy live view URL"
+                          className={`live-url-bar__copy-btn${copied ? ' live-url-bar__copy-btn--copied' : ''}`}
+                        >
+                          {copied ? 'Copied!' : 'Copy'}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
           )}
 
           {/* Courts first */}
-          <ErrorBoundary sectionName="Courts">
-          <CourtsPanel
-            sessionId={sessionId!}
-            courts={state.courts}
-            activeMatches={state.activeMatches}
-            queueLength={state.queue.length}
-            playerStats={(state.playerStats ?? []) as import('../types').PlayerStats[]}
-            achievements={state.achievements ?? []}
-            headToHeadRecords={{}}
-            courtNames={state.session.courtNames}
-            totalCompletedMatches={state.totalCompletedMatches ?? 0}
-            fixedPairs={fixedPairs}
-            onStartMatch={handleStartMatch}
-            onCompleteMatch={handleCompleteMatch}
-            onMatchCompleted={loadSession}
-            onPlayerClick={handlePlayerClick}
-          />
-          </ErrorBoundary>
+          {state.session.gameMode === 'mlp' ? (
+            <ErrorBoundary sectionName="Tournament">
+              <TournamentDashboard
+                sessionId={sessionId!}
+                courtCount={state.session.courtCount || 2}
+                onMatchStarted={loadSession}
+              />
+            </ErrorBoundary>
+          ) : (
+            <>
+              <ErrorBoundary sectionName="Courts">
+              <CourtsPanel
+                sessionId={sessionId!}
+                courts={state.courts}
+                activeMatches={state.activeMatches}
+                queueLength={state.queue.length}
+                playerStats={(state.playerStats ?? []) as import('../types').PlayerStats[]}
+                achievements={state.achievements ?? []}
+                headToHeadRecords={{}}
+                courtNames={state.session.courtNames}
+                totalCompletedMatches={state.totalCompletedMatches ?? 0}
+                fixedPairs={fixedPairs}
+                onStartMatch={handleStartMatch}
+                onCompleteMatch={handleCompleteMatch}
+                onMatchCompleted={loadSession}
+                onPlayerClick={handlePlayerClick}
+                onOpenManualMatch={(courtNumber) => setManualMatchCourt(courtNumber)}
+              />
+              </ErrorBoundary>
 
-          {/* Highlights ticker */}
-          {state.highlights && state.highlights.length > 0 && (
-            <HighlightsTicker highlights={state.highlights} />
+              {/* Highlights ticker */}
+              {state.highlights && state.highlights.length > 0 && (
+                <HighlightsTicker highlights={state.highlights} />
+              )}
+
+              {/* Queue second */}
+              <ErrorBoundary sectionName="Queue">
+              <QueuePanel
+                queue={enrichedQueue}
+                sessionId={sessionId!}
+                gameMode={state.session.gameMode || 'doubles'}
+                matchingMode={state.session.matchingMode || 'balanced'}
+                diversity={state.diversity}
+                waitEstimates={state.waitEstimates}
+                fixedPairs={fixedPairs}
+                activeMatchPlayerIds={state.activeMatches.flatMap(m => m.playerIds || [])}
+                onMoveUp={handleMoveUp}
+                onMoveDown={handleMoveDown}
+                onRemove={handleRemove}
+                onPlayerClick={handlePlayerClick}
+                onCheckIn={handleCheckIn}
+                onPairChanged={loadSession}
+                onStarRatingChange={handleStarRatingChange}
+                nextMatchPlayerIds={(state as any).nextMatchPlayerIds}
+              />
+              </ErrorBoundary>
+            </>
           )}
-
-          {/* Queue second */}
-          <ErrorBoundary sectionName="Queue">
-          <QueuePanel
-            queue={enrichedQueue}
-            sessionId={sessionId!}
-            gameMode={state.session.gameMode || 'doubles'}
-            matchingMode={state.session.matchingMode || 'balanced'}
-            diversity={state.diversity}
-            waitEstimates={state.waitEstimates}
-            fixedPairs={fixedPairs}
-            activeMatchPlayerIds={state.activeMatches.flatMap(m => m.playerIds || [])}
-            onMoveUp={handleMoveUp}
-            onMoveDown={handleMoveDown}
-            onRemove={handleRemove}
-            onPlayerClick={handlePlayerClick}
-            onCheckIn={handleCheckIn}
-            onPairChanged={loadSession}
-            onStarRatingChange={handleStarRatingChange}
-            nextMatchPlayerIds={(state as any).nextMatchPlayerIds}
-          />
-          </ErrorBoundary>
 
           {/* Bench Players — not yet in queue */}
           {state.benchPlayers && state.benchPlayers.length > 0 && (
@@ -749,6 +823,16 @@ function OrganizerDashboard() {
             </section>
           )}
 
+          {/* Results panel — review & correct completed match scores/winners */}
+          {state.session.gameMode !== 'mlp' && (
+            <ErrorBoundary sectionName="Results">
+              <ResultsPanel
+                sessionId={sessionId!}
+                onChanged={loadSession}
+              />
+            </ErrorBoundary>
+          )}
+
           {/* Stats Bar */}
           <StatsBar
             totalPlayers={(state.playerStats ?? []).length || state.queue.length}
@@ -758,7 +842,9 @@ function OrganizerDashboard() {
                 ? (state.playerStats ?? []).reduce((sum, s) => sum + s.winRate, 0) / (state.playerStats ?? []).length
                 : 0
             }
-            sessionQualityScore={state.qualityMetrics?.sessionQualityScore ?? null}
+            inQueue={state.queue.length}
+            activeCourts={(state.courts ?? []).filter((c) => c.status === 'active').length}
+            courtCount={state.session.courtCount ?? (state.courts ?? []).length}
           />
 
           {/* Session Settings Button */}
@@ -810,6 +896,21 @@ function OrganizerDashboard() {
           onClose={() => setShowSettingsModal(false)}
         />
       )}
+
+      {/* Manual Match Selection Modal */}
+      {manualMatchCourt !== null && sessionId && (
+        <ManualMatchModal
+          sessionId={sessionId}
+          courtNumber={manualMatchCourt}
+          gameMode={(state.session.gameMode || 'doubles') as 'doubles' | 'singles'}
+          onClose={() => setManualMatchCourt(null)}
+          onSuccess={() => {
+            setManualMatchCourt(null);
+            loadSession();
+          }}
+        />
+      )}
+
       <ScrollToTopButton />
     </div>
   );

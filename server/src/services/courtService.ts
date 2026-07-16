@@ -29,7 +29,7 @@ import { recordMatchResult } from './matchResultService';
 import { evaluateAchievements } from './achievementsService';
 import { updateMatchPlayers } from '../repository';
 
-type GameMode = 'doubles' | 'singles';
+type GameMode = 'doubles' | 'singles' | 'mlp';
 
 // Configurable casual pool size (default 8, can be overridden for testing)
 let casualPoolSize = 8;
@@ -203,6 +203,80 @@ export function startMatch(sessionId: string, courtNumber: number): Match {
   updateSession(sessionId, { updated_at: now });
 
   // 10. Return the created Match domain object
+  return toMatch(matchRow);
+}
+
+/**
+ * Start a match on a court with manually selected player IDs.
+ * The admin picks which players go on the court instead of using auto-pairing.
+ */
+export function startMatchManual(sessionId: string, courtNumber: number, playerIds: string[]): Match {
+  const session = getSessionById(sessionId);
+  if (!session) {
+    throw new ValidationError('Session not found', ['sessionId']);
+  }
+  if (session.status === 'ended') {
+    throw new ValidationError('Session has ended', ['sessionId']);
+  }
+  if (courtNumber < 1 || courtNumber > session.court_count) {
+    throw new ValidationError(`Court number must be between 1 and ${session.court_count}`, ['courtNumber']);
+  }
+  const activeMatch = getActiveMatchByCourt(sessionId, courtNumber);
+  if (activeMatch) {
+    throw new ValidationError('Court is already occupied with an active match', ['courtNumber']);
+  }
+
+  const gameMode = (session.game_mode || 'doubles') as GameMode;
+  const required = gameMode === 'singles' ? 2 : gameMode === 'mlp' ? 8 : 4;
+  if (playerIds.length !== required) {
+    throw new ValidationError(`Exactly ${required} players required for ${gameMode}`, ['playerIds']);
+  }
+
+  // Validate all players belong to this session
+  const allPlayers = getPlayersBySession(sessionId);
+  const sessionPlayerIds = new Set(allPlayers.map(p => p.id));
+  for (const pid of playerIds) {
+    if (!sessionPlayerIds.has(pid)) {
+      throw new ValidationError(`Player ${pid} is not in this session`, ['playerIds']);
+    }
+  }
+
+  // Create match
+  const now = new Date().toISOString();
+  const matchRow: MatchRow = {
+    id: uuidv4(),
+    session_id: sessionId,
+    court_number: courtNumber,
+    player_ids: JSON.stringify(playerIds),
+    status: 'active',
+    started_at: now,
+    completed_at: null,
+  };
+  createMatch(matchRow);
+
+  // Remove queue entries for selected players
+  const queue = getQueueBySession(sessionId);
+  const selectedSet = new Set(playerIds);
+  for (const entry of queue) {
+    if (selectedSet.has(entry.player_id)) {
+      deleteQueueEntry(entry.player_id);
+    }
+  }
+
+  // Re-number remaining queue positions
+  const remainingQueue = getQueueBySession(sessionId);
+  remainingQueue.sort((a, b) => {
+    const aTime = a.queued_at ? new Date(a.queued_at).getTime() : 0;
+    const bTime = b.queued_at ? new Date(b.queued_at).getTime() : 0;
+    return aTime - bTime;
+  });
+  remainingQueue.forEach((entry, index) => {
+    if (entry.position !== index) {
+      updateQueueEntryPosition(entry.player_id, index);
+    }
+  });
+
+  updateSession(sessionId, { updated_at: now });
   return toMatch(matchRow);
 }
 
