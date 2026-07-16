@@ -390,7 +390,6 @@ function LiveView() {
                               <span className="court-card__stars" aria-label={`${player.starRating} star rating`}>
                                 {renderStars(player.starRating)}
                               </span>
-                              <span className="court-card__player-record">{player.wins}W-{player.losses}L</span>
                             </div>
                           </div>
                         </div>
@@ -422,7 +421,6 @@ function LiveView() {
                               <span className="court-card__stars" aria-label={`${player.starRating} star rating`}>
                                 {renderStars(player.starRating)}
                               </span>
-                              <span className="court-card__player-record">{player.wins}W-{player.losses}L</span>
                             </div>
                           </div>
                         </div>

@@ -2188,14 +2188,6 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--color-text-secondary);
 }
 
-.court-card__player-record {
-  font-size: var(--text-xs);
-  color: var(--color-text-secondary);
-  background: rgba(132, 195, 65, 0.1);
-  padding: 1px 6px;
-  border-radius: var(--radius-full);
-}
-
 .court-card__player-streak {
   font-size: var(--text-xs);
   flex-shrink: 0;
@@ -5796,12 +5788,8 @@ select.create-session__input {
    Mobile Refinements (375px and below)
    =========================== */
 
-/* Court card: hide W-L text on very small screens, keep stars only */
+/* Court card: compact on very small screens, keep stars only */
 @media (max-width: 400px) {
-  .court-card__player-record {
-    display: none;
-  }
-
   .court-card__player-details {
     gap: var(--space-xs);
   }

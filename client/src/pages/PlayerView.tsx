@@ -554,7 +554,8 @@ function PlayerView() {
                             </div>
                             <div className="court-card__player-details">
                               <span className="court-card__stars">{renderStars(player.starRating)}</span>
-                              <span className="court-card__player-record">{player.wins}W-{player.losses}L</span>
+                              {player.streak >= 2 && <span className="court-card__player-streak">🔥</span>}
+                              {player.streak <= -2 && <span className="court-card__player-streak">❄️</span>}
                             </div>
                           </div>
                         </div>
@@ -576,7 +577,8 @@ function PlayerView() {
                             </div>
                             <div className="court-card__player-details">
                               <span className="court-card__stars">{renderStars(player.starRating)}</span>
-                              <span className="court-card__player-record">{player.wins}W-{player.losses}L</span>
+                              {player.streak >= 2 && <span className="court-card__player-streak">🔥</span>}
+                              {player.streak <= -2 && <span className="court-card__player-streak">❄️</span>}
                             </div>
                           </div>
                         </div>

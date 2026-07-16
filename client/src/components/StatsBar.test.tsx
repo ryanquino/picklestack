@@ -6,7 +6,9 @@ const defaultProps = {
   totalPlayers: 12,
   matchesPlayed: 8,
   averageWinRate: 52.4,
-  sessionQualityScore: 75,
+  inQueue: 5,
+  activeCourts: 3,
+  courtCount: 4,
 };
 
 describe('StatsBar', () => {
@@ -17,35 +19,27 @@ describe('StatsBar', () => {
       expect(screen.getByText('Players')).toBeInTheDocument();
     });
 
+    it('renders in queue count', () => {
+      render(<StatsBar {...defaultProps} />);
+      expect(screen.getByText('5')).toBeInTheDocument();
+      expect(screen.getByText('In Queue')).toBeInTheDocument();
+    });
+
     it('renders matches played count', () => {
       render(<StatsBar {...defaultProps} />);
       expect(screen.getByText('8')).toBeInTheDocument();
       expect(screen.getByText('Matches')).toBeInTheDocument();
     });
 
+    it('renders active courts over court count', () => {
+      render(<StatsBar {...defaultProps} />);
+      expect(screen.getByText('3/4')).toBeInTheDocument();
+      expect(screen.getByText('Courts')).toBeInTheDocument();
+    });
+
     it('renders average win rate as rounded percentage', () => {
       render(<StatsBar {...defaultProps} />);
       expect(screen.getByText('52%')).toBeInTheDocument();
-    });
-
-    it('renders Great when quality score >= 70', () => {
-      render(<StatsBar {...defaultProps} sessionQualityScore={75} />);
-      expect(screen.getByText('Great')).toBeInTheDocument();
-    });
-
-    it('renders Decent when quality score 40-69', () => {
-      render(<StatsBar {...defaultProps} sessionQualityScore={55} />);
-      expect(screen.getByText('Decent')).toBeInTheDocument();
-    });
-
-    it('renders Lopsided when quality score < 40', () => {
-      render(<StatsBar {...defaultProps} sessionQualityScore={25} />);
-      expect(screen.getByText('Lopsided')).toBeInTheDocument();
-    });
-
-    it('renders N/A when quality score is null', () => {
-      render(<StatsBar {...defaultProps} sessionQualityScore={null} />);
-      expect(screen.getByText('N/A')).toBeInTheDocument();
     });
   });
 
@@ -72,19 +66,24 @@ describe('StatsBar', () => {
       expect(screen.getByRole('img', { name: 'Players' })).toBeInTheDocument();
     });
 
+    it('renders In queue icon with aria-label', () => {
+      render(<StatsBar {...defaultProps} />);
+      expect(screen.getByRole('img', { name: 'In queue' })).toBeInTheDocument();
+    });
+
     it('renders Matches icon with aria-label', () => {
       render(<StatsBar {...defaultProps} />);
       expect(screen.getByRole('img', { name: 'Matches' })).toBeInTheDocument();
     });
 
+    it('renders Active courts icon with aria-label', () => {
+      render(<StatsBar {...defaultProps} />);
+      expect(screen.getByRole('img', { name: 'Active courts' })).toBeInTheDocument();
+    });
+
     it('renders Win rate icon with aria-label', () => {
       render(<StatsBar {...defaultProps} />);
       expect(screen.getByRole('img', { name: 'Win rate' })).toBeInTheDocument();
-    });
-
-    it('renders Match quality icon with aria-label', () => {
-      render(<StatsBar {...defaultProps} />);
-      expect(screen.getByRole('img', { name: 'Match quality' })).toBeInTheDocument();
     });
   });
 });
