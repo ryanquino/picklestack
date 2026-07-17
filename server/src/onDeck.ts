@@ -10,7 +10,7 @@
  * Determines which players are "On Deck" based on queue state, game mode, and matching mode.
  *
  * Rules:
- * - Casual/Balanced/Competitive: first min(N, 8) players (entire candidate pool)
+ * - Casual/Balanced/Competitive/Comeback: first min(N, 8) players (entire candidate pool)
  * - Queue + Doubles: first min(N, 4) players
  * - Queue + Singles: first min(N, 2) players
  *
@@ -19,13 +19,13 @@
  *
  * @param queue - Array of queue entries sorted by position ascending
  * @param gameMode - 'doubles' or 'singles'
- * @param matchingMode - 'casual', 'balanced', 'competitive', or 'queue'
+ * @param matchingMode - 'casual', 'balanced', 'competitive', 'queue', or 'comeback'
  * @returns Array of player IDs that are "On Deck"
  */
 export function getOnDeckPlayerIds(
   queue: { playerId: string; position: number }[],
   gameMode: 'doubles' | 'singles',
-  matchingMode: 'casual' | 'balanced' | 'competitive' | 'queue'
+  matchingMode: 'casual' | 'balanced' | 'competitive' | 'queue' | 'comeback'
 ): string[] {
   let count: number;
 

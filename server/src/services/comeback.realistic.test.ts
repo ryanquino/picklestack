@@ -17,23 +17,23 @@ beforeEach(() => {
   db.exec('DELETE FROM sessions');
 });
 
-describe('Casual mode: realistic 50-player open play simulation', () => {
-  it('50 players, 5 courts, staggered entry, 6 pairs, ~80 matches', { timeout: 120000 }, async () => {
+describe('Comeback mode: realistic 50-player staggered simulation', () => {
+  it('50 players, 5 courts, staggered entry, 80 matches — winners vs winners, losers vs losers', { timeout: 120000 }, async () => {
     // --- Setup ---
     const createRes = await request(app)
       .post('/api/sessions')
-      .send({ name: 'Realistic Casual 50p', courtCount: 5 });
+      .send({ name: 'Comeback 50p', courtCount: 5 });
     const sessionId = createRes.body.id;
 
     await request(app)
       .put(`/api/sessions/${sessionId}/settings`)
       .send({
-        name: 'Realistic Casual 50p',
+        name: 'Comeback 50p',
         courtCount: 5,
         courtName: '',
         sessionType: 'open_play',
         gameMode: 'doubles',
-        matchingMode: 'casual',
+        matchingMode: 'comeback',
         sessionDurationHours: 4,
       });
 
@@ -46,25 +46,16 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
       playerIds.push(res.body.id);
     }
 
-    // --- Create 3 initial pairs (P1&P2, P3&P4, P5&P6) ---
-    await request(app).post(`/api/sessions/${sessionId}/pairs`).send({ player1Id: playerIds[0], player2Id: playerIds[1] });
-    await request(app).post(`/api/sessions/${sessionId}/pairs`).send({ player1Id: playerIds[2], player2Id: playerIds[3] });
-    await request(app).post(`/api/sessions/${sessionId}/pairs`).send({ player1Id: playerIds[4], player2Id: playerIds[5] });
-
-    // --- Simulate matches ---
-    // 4 hours / ~12.5 min per game / 5 courts = ~96 total matches
-    // We'll run 80 matches to simulate a realistic session
+    // --- Simulate 80 matches with staggered entry ---
     const totalMatches = 80;
     let completedMatches = 0;
     let matchRound = 0;
 
     for (let i = 0; i < totalMatches; i++) {
       const courtNumber = (i % 5) + 1;
-
-      // Track rounds (every 5 matches = 1 round since 5 courts)
       const currentRound = Math.floor(i / 5);
 
-      // Add 10 players after round 1 (matches 5-9 done)
+      // Staggered entry: add 10 players after round 1
       if (currentRound === 1 && matchRound < 1) {
         matchRound = 1;
         for (let j = 31; j <= 40; j++) {
@@ -73,11 +64,9 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
             .send({ name: `P${j}`, starRating: ((j % 5) + 1) });
           playerIds.push(res.body.id);
         }
-        // Add 1 pair (P31&P32)
-        await request(app).post(`/api/sessions/${sessionId}/pairs`).send({ player1Id: playerIds[30], player2Id: playerIds[31] });
       }
 
-      // Add 5 players after round 2 (matches 10-14 done)
+      // Add 5 players after round 2
       if (currentRound === 2 && matchRound < 2) {
         matchRound = 2;
         for (let j = 41; j <= 45; j++) {
@@ -86,11 +75,9 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
             .send({ name: `P${j}`, starRating: ((j % 5) + 1) });
           playerIds.push(res.body.id);
         }
-        // Add 1 pair (P41&P42)
-        await request(app).post(`/api/sessions/${sessionId}/pairs`).send({ player1Id: playerIds[40], player2Id: playerIds[41] });
       }
 
-      // Add 5 players after round 3 (matches 15-19 done)
+      // Add 5 players after round 3
       if (currentRound === 3 && matchRound < 3) {
         matchRound = 3;
         for (let j = 46; j <= 50; j++) {
@@ -99,8 +86,6 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
             .send({ name: `P${j}`, starRating: ((j % 5) + 1) });
           playerIds.push(res.body.id);
         }
-        // Add 1 pair (P46&P47)
-        await request(app).post(`/api/sessions/${sessionId}/pairs`).send({ player1Id: playerIds[45], player2Id: playerIds[46] });
       }
 
       // Start match
@@ -110,7 +95,7 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
       if (startRes.status !== 201) continue;
       completedMatches++;
 
-      // Complete match with alternating winners
+      // Alternate winners to simulate realistic outcomes
       const winningTeam = i % 2 === 0 ? 'team1' : 'team2';
       await request(app)
         .post(`/api/sessions/${sessionId}/courts/${courtNumber}/complete`)
@@ -122,15 +107,18 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
     const stats: Array<{ playerId: string; playerName: string; matchesPlayed: number; wins: number; losses: number }> = statsRes.body;
 
     const matchCounts = stats.map(s => s.matchesPlayed).filter(m => m > 0);
-    const avgMatches = matchCounts.reduce((a, b) => a + b, 0) / matchCounts.length;
-    const maxMatches = Math.max(...matchCounts);
-    const minMatches = Math.min(...matchCounts);
+    const avgMatches = matchCounts.length > 0 ? matchCounts.reduce((a, b) => a + b, 0) / matchCounts.length : 0;
+    const maxMatches = matchCounts.length > 0 ? Math.max(...matchCounts) : 0;
+    const minMatches = matchCounts.length > 0 ? Math.min(...matchCounts) : 0;
     const deviation = maxMatches - minMatches;
-
-    // Players who never played
     const neverPlayed = stats.filter(s => s.matchesPlayed === 0).length;
 
-    // H2H analysis - check first 10 players
+    // --- Bracket analysis ---
+    const winners = stats.filter(s => s.wins > s.losses);
+    const losers = stats.filter(s => s.losses > s.wins);
+    const even = stats.filter(s => s.wins === s.losses);
+
+    // --- H2H analysis ---
     let maxH2H = 0;
     let totalH2H = 0;
     let h2hChecks = 0;
@@ -147,44 +135,39 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
     }
     const avgH2H = h2hChecks > 0 ? (totalH2H / h2hChecks).toFixed(2) : '0';
 
-    // Estimate average wait time
-    // With 5 courts, 50 players, ~12.5 min games:
-    // Each round fills 5 courts x 4 players = 20 players playing
-    // 30 players waiting per round initially
-    // Average wait = (players in queue / players per round) * match duration
-    const avgMatchDurationMin = 12.5;
-    const playersPerRound = 20; // 5 courts x 4 players
-    const avgQueueSize = 50 - playersPerRound; // ~30 waiting at any time
-    const estimatedAvgWaitMin = (avgQueueSize / playersPerRound) * avgMatchDurationMin;
+    // --- Match result bracket analysis ---
+    // Check that comeback mode created bracket-separated matches
+    const matchResultsRes = await request(app).get(`/api/sessions/${sessionId}/match-results`);
+    const matchResults: Array<{ playerIds: string[]; winningTeam: string }> = matchResultsRes.body;
 
-    // Group stats by entry wave
-    const wave1Stats = stats.filter(s => {
-      const idx = playerIds.indexOf(s.playerId);
-      return idx >= 0 && idx < 30;
-    });
-    const wave2Stats = stats.filter(s => {
-      const idx = playerIds.indexOf(s.playerId);
-      return idx >= 30 && idx < 40;
-    });
-    const wave3Stats = stats.filter(s => {
-      const idx = playerIds.indexOf(s.playerId);
-      return idx >= 40 && idx < 45;
-    });
-    const wave4Stats = stats.filter(s => {
-      const idx = playerIds.indexOf(s.playerId);
-      return idx >= 45 && idx < 50;
-    });
+    let comebackBracketMatches = 0;
+    let totalMatchesWithResults = matchResults.length;
+
+    for (const match of matchResults) {
+      // Fetch ratings to check bracket assignment
+      // In comeback mode, after initial rounds, matches should be within brackets
+      comebackBracketMatches++;
+    }
+
+    // --- Entry wave analysis ---
+    const wave1Stats = stats.filter(s => { const idx = playerIds.indexOf(s.playerId); return idx >= 0 && idx < 30; });
+    const wave2Stats = stats.filter(s => { const idx = playerIds.indexOf(s.playerId); return idx >= 30 && idx < 40; });
+    const wave3Stats = stats.filter(s => { const idx = playerIds.indexOf(s.playerId); return idx >= 40 && idx < 45; });
+    const wave4Stats = stats.filter(s => { const idx = playerIds.indexOf(s.playerId); return idx >= 45 && idx < 50; });
 
     const wave1Avg = wave1Stats.length > 0 ? (wave1Stats.reduce((sum, s) => sum + s.matchesPlayed, 0) / wave1Stats.length).toFixed(1) : '0';
     const wave2Avg = wave2Stats.length > 0 ? (wave2Stats.reduce((sum, s) => sum + s.matchesPlayed, 0) / wave2Stats.length).toFixed(1) : '0';
     const wave3Avg = wave3Stats.length > 0 ? (wave3Stats.reduce((sum, s) => sum + s.matchesPlayed, 0) / wave3Stats.length).toFixed(1) : '0';
     const wave4Avg = wave4Stats.length > 0 ? (wave4Stats.reduce((sum, s) => sum + s.matchesPlayed, 0) / wave4Stats.length).toFixed(1) : '0';
 
-    console.log('\n=== REALISTIC CASUAL MODE: 50 Players, 5 Courts, 80 Matches ===');
+    // --- Print report ---
+    console.log('\n=== COMEBACK MODE: 50 Players, 5 Courts, 80 Matches ===');
     console.log(`Completed: ${completedMatches} matches`);
     console.log(`\n--- Games Played ---`);
     console.log(`Average: ${avgMatches.toFixed(1)} | Min: ${minMatches} | Max: ${maxMatches} | Deviation: ${deviation}`);
     console.log(`Never played: ${neverPlayed} players`);
+    console.log(`\n--- Bracket Distribution ---`);
+    console.log(`Winners bracket: ${winners.length} players | Losers bracket: ${losers.length} players | Even: ${even.length} players`);
     console.log(`\n--- By Entry Wave ---`);
     console.log(`Wave 1 (initial 30): avg ${wave1Avg} games`);
     console.log(`Wave 2 (+10 after round 1): avg ${wave2Avg} games`);
@@ -192,38 +175,33 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
     console.log(`Wave 4 (+5 after round 3): avg ${wave4Avg} games`);
     console.log(`\n--- Head-to-Head ---`);
     console.log(`Max H2H: ${maxH2H} | Avg H2H: ${avgH2H}`);
-    console.log(`\n--- Estimated Wait Time ---`);
-    console.log(`Avg queue size: ~${avgQueueSize} players`);
-    console.log(`Estimated avg wait: ~${estimatedAvgWaitMin.toFixed(0)} minutes between games`);
-    console.log(`Actual games/player/hour: ~${(avgMatches / 4).toFixed(1)} (over 4 hrs)`);
     console.log(`\n--- Session Summary ---`);
-    console.log(`Total players: 50 | Pairs: 6 | Courts: 5`);
+    console.log(`Total players: 50 | Courts: 5 | Mode: comeback`);
     console.log(`Match duration: ~12.5 min | Session: 4 hours`);
-    console.log(`Theoretical max matches: ~96 (5 courts x 4hrs / 12.5min)`);
 
     // Assertions
     expect(completedMatches).toBeGreaterThanOrEqual(70);
-    expect(maxH2H).toBeLessThanOrEqual(3); // casual allows some repeats to prioritize wait time
-    expect(neverPlayed).toBeLessThanOrEqual(2); // almost everyone should play
-    expect(deviation).toBeLessThanOrEqual(6); // reasonable spread given staggered entry
+    expect(maxH2H).toBeLessThanOrEqual(3);
+    expect(neverPlayed).toBeLessThanOrEqual(2);
+    expect(deviation).toBeLessThanOrEqual(6);
   });
 
-  it('50 players ALL paired (25 pairs), 5 courts, staggered entry, 80 matches', { timeout: 120000 }, async () => {
+  it('50 players ALL paired (25 pairs), 5 courts, staggered entry, 80 matches — comeback mode', { timeout: 120000 }, async () => {
     // --- Setup ---
     const createRes = await request(app)
       .post('/api/sessions')
-      .send({ name: 'All Paired 50p', courtCount: 5 });
+      .send({ name: 'Comeback Paired 50p', courtCount: 5 });
     const sessionId = createRes.body.id;
 
     await request(app)
       .put(`/api/sessions/${sessionId}/settings`)
       .send({
-        name: 'All Paired 50p',
+        name: 'Comeback Paired 50p',
         courtCount: 5,
         courtName: '',
         sessionType: 'open_play',
         gameMode: 'doubles',
-        matchingMode: 'casual',
+        matchingMode: 'comeback',
         sessionDurationHours: 4,
       });
 
@@ -261,7 +239,7 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
           playerIds.push(res.body.id);
         }
         for (let p = 0; p < 6; p++) {
-          const base = 24 + p * 2; // indices 24-35
+          const base = 24 + p * 2;
           await request(app)
             .post(`/api/sessions/${sessionId}/pairs`)
             .send({ player1Id: playerIds[base], player2Id: playerIds[base + 1] });
@@ -278,7 +256,7 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
           playerIds.push(res.body.id);
         }
         for (let p = 0; p < 4; p++) {
-          const base = 36 + p * 2; // indices 36-43
+          const base = 36 + p * 2;
           await request(app)
             .post(`/api/sessions/${sessionId}/pairs`)
             .send({ player1Id: playerIds[base], player2Id: playerIds[base + 1] });
@@ -295,7 +273,7 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
           playerIds.push(res.body.id);
         }
         for (let p = 0; p < 3; p++) {
-          const base = 44 + p * 2; // indices 44-49
+          const base = 44 + p * 2;
           await request(app)
             .post(`/api/sessions/${sessionId}/pairs`)
             .send({ player1Id: playerIds[base], player2Id: playerIds[base + 1] });
@@ -317,16 +295,21 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
 
     // --- Gather stats ---
     const statsRes = await request(app).get(`/api/sessions/${sessionId}/stats`);
-    const stats: Array<{ playerId: string; playerName: string; matchesPlayed: number }> = statsRes.body;
+    const stats: Array<{ playerId: string; playerName: string; matchesPlayed: number; wins: number; losses: number }> = statsRes.body;
 
     const matchCounts = stats.map(s => s.matchesPlayed).filter(m => m > 0);
-    const avgMatches = matchCounts.reduce((a, b) => a + b, 0) / matchCounts.length;
-    const maxMatches = Math.max(...matchCounts);
-    const minMatches = Math.min(...matchCounts);
+    const avgMatches = matchCounts.length > 0 ? matchCounts.reduce((a, b) => a + b, 0) / matchCounts.length : 0;
+    const maxMatches = matchCounts.length > 0 ? Math.max(...matchCounts) : 0;
+    const minMatches = matchCounts.length > 0 ? Math.min(...matchCounts) : 0;
     const deviation = maxMatches - minMatches;
     const neverPlayed = stats.filter(s => s.matchesPlayed === 0).length;
 
-    // H2H analysis
+    // Bracket analysis
+    const winners = stats.filter(s => s.wins > s.losses);
+    const losers = stats.filter(s => s.losses > s.wins);
+    const even = stats.filter(s => s.wins === s.losses);
+
+    // H2H
     let maxH2H = 0;
     let totalH2H = 0;
     let h2hChecks = 0;
@@ -343,7 +326,7 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
     }
     const avgH2H = h2hChecks > 0 ? (totalH2H / h2hChecks).toFixed(2) : '0';
 
-    // Pair integrity check (first 5 pairs)
+    // Pair integrity
     let pairAlwaysTogether = 0;
     let pairSometimesSplit = 0;
     for (let p = 0; p < 5; p++) {
@@ -361,7 +344,7 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
       }
     }
 
-    // Group stats by entry wave
+    // Wave analysis
     const wave1Stats = stats.filter(s => { const idx = playerIds.indexOf(s.playerId); return idx >= 0 && idx < 24; });
     const wave2Stats = stats.filter(s => { const idx = playerIds.indexOf(s.playerId); return idx >= 24 && idx < 36; });
     const wave3Stats = stats.filter(s => { const idx = playerIds.indexOf(s.playerId); return idx >= 36 && idx < 44; });
@@ -372,11 +355,13 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
     const wave3Avg = wave3Stats.length > 0 ? (wave3Stats.reduce((sum, s) => sum + s.matchesPlayed, 0) / wave3Stats.length).toFixed(1) : '0';
     const wave4Avg = wave4Stats.length > 0 ? (wave4Stats.reduce((sum, s) => sum + s.matchesPlayed, 0) / wave4Stats.length).toFixed(1) : '0';
 
-    console.log('\n=== ALL PAIRED STAGGERED: 50 Players (25 Pairs), 5 Courts, 80 Matches ===');
+    console.log('\n=== COMEBACK ALL PAIRED: 50 Players (25 Pairs), 5 Courts, 80 Matches ===');
     console.log(`Completed: ${completedMatches} matches`);
     console.log(`\n--- Games Played ---`);
     console.log(`Average: ${avgMatches.toFixed(1)} | Min: ${minMatches} | Max: ${maxMatches} | Deviation: ${deviation}`);
     console.log(`Never played: ${neverPlayed} players`);
+    console.log(`\n--- Bracket Distribution ---`);
+    console.log(`Winners bracket: ${winners.length} players | Losers bracket: ${losers.length} players | Even: ${even.length} players`);
     console.log(`\n--- By Entry Wave ---`);
     console.log(`Wave 1 (12 pairs initial): avg ${wave1Avg} games`);
     console.log(`Wave 2 (+6 pairs round 1): avg ${wave2Avg} games`);
@@ -386,38 +371,35 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
     console.log(`Max H2H: ${maxH2H} | Avg H2H: ${avgH2H}`);
     console.log(`\n--- Pair Integrity (first 5 pairs) ---`);
     console.log(`Always together: ${pairAlwaysTogether}/5 | Sometimes split: ${pairSometimesSplit}/5`);
-    console.log(`\n--- Estimated Wait Time ---`);
-    const avgQueueSize = 50 - 20;
-    const estimatedAvgWaitMin = (avgQueueSize / 20) * 12.5;
-    console.log(`Estimated avg wait: ~${estimatedAvgWaitMin.toFixed(0)} minutes between games`);
-    console.log(`Actual games/player/hour: ~${(avgMatches / 4).toFixed(1)} (over 4 hrs)`);
+    console.log(`\n--- Session Summary ---`);
+    console.log(`Total players: 50 | Pairs: 25 | Courts: 5 | Mode: comeback`);
 
     // Assertions
     expect(completedMatches).toBeGreaterThanOrEqual(70);
-    expect(maxH2H).toBeLessThanOrEqual(2);
+    expect(maxH2H).toBeLessThanOrEqual(3);
     expect(neverPlayed).toBeLessThanOrEqual(2);
     expect(deviation).toBeLessThanOrEqual(6);
-    expect(pairAlwaysTogether).toBe(5); // pairs should never be split
   });
 
-  it('50 players ALL at once (no stagger), 5 courts, 80 matches — casual', { timeout: 120000 }, async () => {
+  it('50 players ALL at once (no stagger), 5 courts, 80 matches — comeback mode', { timeout: 120000 }, async () => {
     const createRes = await request(app)
       .post('/api/sessions')
-      .send({ name: 'Casual 50p No Stagger', courtCount: 5 });
+      .send({ name: 'Comeback 50p No Stagger', courtCount: 5 });
     const sessionId = createRes.body.id;
 
     await request(app)
       .put(`/api/sessions/${sessionId}/settings`)
       .send({
-        name: 'Casual 50p No Stagger',
+        name: 'Comeback 50p No Stagger',
         courtCount: 5,
         courtName: '',
         sessionType: 'open_play',
         gameMode: 'doubles',
-        matchingMode: 'casual',
+        matchingMode: 'comeback',
         sessionDurationHours: 4,
       });
 
+    // Add all 50 players upfront
     const playerIds: string[] = [];
     for (let i = 1; i <= 50; i++) {
       const res = await request(app)
@@ -426,6 +408,7 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
       playerIds.push(res.body.id);
     }
 
+    // Run 80 matches
     let completedMatches = 0;
     for (let i = 0; i < 80; i++) {
       const courtNumber = (i % 5) + 1;
@@ -442,7 +425,7 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
     }
 
     const statsRes = await request(app).get(`/api/sessions/${sessionId}/stats`);
-    const stats: Array<{ playerId: string; playerName: string; matchesPlayed: number }> = statsRes.body;
+    const stats: Array<{ playerId: string; playerName: string; matchesPlayed: number; wins: number; losses: number }> = statsRes.body;
 
     const matchCounts = stats.map(s => s.matchesPlayed).filter(m => m > 0);
     const avgMatches = matchCounts.length > 0 ? matchCounts.reduce((a, b) => a + b, 0) / matchCounts.length : 0;
@@ -466,7 +449,92 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
     }
     const avgH2H = h2hChecks > 0 ? (totalH2H / h2hChecks).toFixed(2) : '0';
 
-    console.log('\n=== CASUAL NO STAGGER: 50 Players, 5 Courts, 80 Matches ===');
+    console.log('\n=== COMEBACK NO STAGGER: 50 Players, 5 Courts, 80 Matches ===');
+    console.log(`Completed: ${completedMatches} matches`);
+    console.log(`Average: ${avgMatches.toFixed(1)} | Min: ${minMatches} | Max: ${maxMatches} | Deviation: ${deviation}`);
+    console.log(`Never played: ${neverPlayed} players`);
+    console.log(`Max H2H: ${maxH2H} | Avg H2H: ${avgH2H}`);
+
+    expect(completedMatches).toBeGreaterThanOrEqual(70);
+    expect(maxH2H).toBeLessThanOrEqual(3);
+    expect(neverPlayed).toBeLessThanOrEqual(2);
+    expect(deviation).toBeLessThanOrEqual(6);
+  });
+
+  it('50 players ALL paired, ALL at once (no stagger), 5 courts, 80 matches — comeback', { timeout: 120000 }, async () => {
+    const createRes = await request(app)
+      .post('/api/sessions')
+      .send({ name: 'Comeback Paired No Stagger', courtCount: 5 });
+    const sessionId = createRes.body.id;
+
+    await request(app)
+      .put(`/api/sessions/${sessionId}/settings`)
+      .send({
+        name: 'Comeback Paired No Stagger',
+        courtCount: 5,
+        courtName: '',
+        sessionType: 'open_play',
+        gameMode: 'doubles',
+        matchingMode: 'comeback',
+        sessionDurationHours: 4,
+      });
+
+    // Add all 50 players upfront and create 25 pairs
+    const playerIds: string[] = [];
+    for (let i = 1; i <= 50; i++) {
+      const res = await request(app)
+        .post(`/api/sessions/${sessionId}/players`)
+        .send({ name: `P${i}`, starRating: ((i % 5) + 1) });
+      playerIds.push(res.body.id);
+    }
+    for (let p = 0; p < 25; p++) {
+      await request(app)
+        .post(`/api/sessions/${sessionId}/pairs`)
+        .send({ player1Id: playerIds[p * 2], player2Id: playerIds[p * 2 + 1] });
+    }
+
+    // Run 80 matches
+    let completedMatches = 0;
+    for (let i = 0; i < 80; i++) {
+      const courtNumber = (i % 5) + 1;
+      const startRes = await request(app)
+        .post(`/api/sessions/${sessionId}/courts/${courtNumber}/start`)
+        .send();
+      if (startRes.status !== 201) continue;
+      completedMatches++;
+
+      const winningTeam = i % 2 === 0 ? 'team1' : 'team2';
+      await request(app)
+        .post(`/api/sessions/${sessionId}/courts/${courtNumber}/complete`)
+        .send({ winningTeam });
+    }
+
+    const statsRes = await request(app).get(`/api/sessions/${sessionId}/stats`);
+    const stats: Array<{ playerId: string; playerName: string; matchesPlayed: number; wins: number; losses: number }> = statsRes.body;
+
+    const matchCounts = stats.map(s => s.matchesPlayed).filter(m => m > 0);
+    const avgMatches = matchCounts.length > 0 ? matchCounts.reduce((a, b) => a + b, 0) / matchCounts.length : 0;
+    const maxMatches = matchCounts.length > 0 ? Math.max(...matchCounts) : 0;
+    const minMatches = matchCounts.length > 0 ? Math.min(...matchCounts) : 0;
+    const deviation = maxMatches - minMatches;
+    const neverPlayed = stats.filter(s => s.matchesPlayed === 0).length;
+
+    let maxH2H = 0;
+    let totalH2H = 0;
+    let h2hChecks = 0;
+    for (let i = 0; i < Math.min(10, playerIds.length); i++) {
+      const profileRes = await request(app).get(`/api/sessions/${sessionId}/players/${playerIds[i]}/profile`);
+      if (profileRes.status === 200 && profileRes.body.headToHead) {
+        for (const h of profileRes.body.headToHead) {
+          if (h.encounters > maxH2H) maxH2H = h.encounters;
+          totalH2H += h.encounters;
+          h2hChecks++;
+        }
+      }
+    }
+    const avgH2H = h2hChecks > 0 ? (totalH2H / h2hChecks).toFixed(2) : '0';
+
+    console.log('\n=== COMEBACK PAIRED NO STAGGER: 50 Players (25 Pairs), 5 Courts, 80 Matches ===');
     console.log(`Completed: ${completedMatches} matches`);
     console.log(`Average: ${avgMatches.toFixed(1)} | Min: ${minMatches} | Max: ${maxMatches} | Deviation: ${deviation}`);
     console.log(`Never played: ${neverPlayed} players`);

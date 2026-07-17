@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { PendingPlayer, SessionType, GameMode, MatchingMode, StarRating, MLPTournamentConfig, PlayerGender } from '../types';
 import { STAR_RATING_LABELS } from '../types';
@@ -11,11 +11,6 @@ interface PendingPair {
   id: string;
   player1LocalId: string;
   player2LocalId: string;
-}
-
-/** Extended pending player with gender for MLP */
-interface MLPPendingPlayer extends PendingPlayer {
-  gender: PlayerGender;
 }
 
 function CreateSession() {
@@ -62,15 +57,15 @@ function CreateSession() {
     teamCount: 4,
   });
   const [playerGender, setPlayerGender] = useState<Record<string, PlayerGender>>({});
-  const [mlpTeamMode, setMlpTeamMode] = useState<'manual' | 'random'>('manual');
+  const [selectedGenderIds, setSelectedGenderIds] = useState<Set<string>>(new Set());
+  const lastClickedGenderRef = useRef<string | null>(null);
+  const teamCountManuallyEditedRef = useRef(false);
 
-  // Default team count to courts × 2
+  // Default team count to courts × 2 (unless user manually edited)
   useEffect(() => {
-    setMlpConfig(prev => {
-      const defaultCount = courtCount * 2;
-      if (prev.teamCount === 4) return { ...prev, teamCount: defaultCount };
-      return prev;
-    });
+    if (!teamCountManuallyEditedRef.current) {
+      setMlpConfig(prev => ({ ...prev, teamCount: courtCount * 2 }));
+    }
   }, [courtCount]);
 
   function handleAddPlayer() {
@@ -89,9 +84,9 @@ function CreateSession() {
     };
 
     setPendingPlayers((prev) => [...prev, newPlayer]);
-    // Default gender for new players in MLP mode
+    // Default new players to male in MLP mode
     if (gameMode === 'mlp') {
-      setPlayerGender(prev => ({ ...prev, [newPlayer.localId]: prev['__new__'] ?? 'male', '__new__': 'male' }));
+      setPlayerGender(prev => ({ ...prev, [newPlayer.localId]: 'male' }));
     }
     setPlayerNameInput('');
     setPlayerStarRatingInput(3);
@@ -115,6 +110,12 @@ function CreateSession() {
       // Player is going from checked-in to unchecked
       setPairSelection((prev) => prev.filter((id) => id !== localId));
       setPendingPairs((prev) => prev.filter((p) => p.player1LocalId !== localId && p.player2LocalId !== localId));
+      // Also remove from gender selection
+      setSelectedGenderIds((prev) => {
+        const next = new Set(prev);
+        next.delete(localId);
+        return next;
+      });
     }
   }
 
@@ -186,6 +187,16 @@ function CreateSession() {
 
     if (newPlayers.length > 0) {
       setPendingPlayers(prev => [...prev, ...newPlayers]);
+      // Default bulk-imported players to male in MLP mode
+      if (gameMode === 'mlp') {
+        setPlayerGender(prev => {
+          const updated = { ...prev };
+          for (const p of newPlayers) {
+            updated[p.localId] = 'male';
+          }
+          return updated;
+        });
+      }
     }
     setBulkImportText('');
     setShowBulkImport(false);
@@ -202,6 +213,17 @@ function CreateSession() {
     setSubmitError(null);
 
     try {
+      // Validate equal male/female counts for MLP mode
+      if (gameMode === 'mlp') {
+        const maleCount = pendingPlayers.filter(p => (playerGender[p.localId] ?? 'male') === 'male').length;
+        const femaleCount = pendingPlayers.filter(p => playerGender[p.localId] === 'female').length;
+        if (maleCount !== femaleCount) {
+          setSubmitError(`MLP requires equal male and female players. You have ${maleCount} male and ${femaleCount} female.`);
+          setSubmitting(false);
+          return;
+        }
+      }
+
       // 1. Create session
       const session = await createSession(name.trim(), courtCount);
 
@@ -441,7 +463,10 @@ function CreateSession() {
                   min={2}
                   max={32}
                   value={mlpConfig.teamCount}
-                  onChange={(e) => setMlpConfig(prev => ({ ...prev, teamCount: Math.max(2, Number(e.target.value) || 2) }))}
+                  onChange={(e) => {
+                    teamCountManuallyEditedRef.current = true;
+                    setMlpConfig(prev => ({ ...prev, teamCount: Math.max(2, Number(e.target.value) || 2) }));
+                  }}
                   className="create-session__input"
                 />
                 <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
@@ -514,6 +539,7 @@ function CreateSession() {
               <div role="radiogroup" aria-label="Match making mode" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {([
                   { value: 'casual', label: 'Casual', badge: null, desc: 'Every player faces a fresh opponent each round. Perfect for social sessions where variety and fun matter more than competition.' },
+                  { value: 'comeback', label: 'Comeback', badge: null, desc: 'Winners face winners, losers face losers. After the first round, the queue splits into two — everyone gets a fair shot at a comeback.' },
                   { value: 'balanced', label: 'Smart', badge: 'COMING SOON', desc: 'Equal court time for everyone with skill-balanced teams. The algorithm ensures fair play while keeping matches competitive. Best for most open play sessions.', disabled: true },
                   { value: 'competitive', label: 'Competitive', badge: 'COMING SOON', desc: 'Skill rating drives all matchups. Players are grouped by ability for the tightest possible games. Repeat opponents may occur.', disabled: true },
                 ] as const).map((option) => (
@@ -627,21 +653,6 @@ function CreateSession() {
               </select>
             </div>
 
-            {gameMode === 'mlp' && (
-              <div className="create-session__field create-session__field--inline">
-                <label htmlFor="player-gender">Gender</label>
-                <select
-                  id="player-gender"
-                  value={playerGender['__new__'] ?? 'male'}
-                  onChange={(e) => setPlayerGender(prev => ({ ...prev, '__new__': e.target.value as PlayerGender }))}
-                  className="create-session__input"
-                >
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                </select>
-              </div>
-            )}
-
             <button
               type="button"
               onClick={handleAddPlayer}
@@ -740,27 +751,6 @@ function CreateSession() {
                       ))}
                     </span>
                   </div>
-
-                  {/* Gender selector for MLP mode */}
-                  {gameMode === 'mlp' && (
-                    <select
-                      value={playerGender[player.localId] ?? 'male'}
-                      onChange={(e) => setPlayerGender(prev => ({ ...prev, [player.localId]: e.target.value as PlayerGender }))}
-                      style={{
-                        padding: '0.2rem 0.4rem',
-                        borderRadius: '4px',
-                        border: '1px solid var(--color-border)',
-                        fontSize: '0.75rem',
-                        background: 'var(--color-surface)',
-                        color: 'var(--color-text-primary)',
-                        cursor: 'pointer',
-                      }}
-                      aria-label={`Gender for ${player.name}`}
-                    >
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                    </select>
-                  )}
 
                   {/* Status: pending, pair, or paired — same slot */}
                   {!player.checkedIn ? (
@@ -869,24 +859,250 @@ function CreateSession() {
             </ul>
           )}
 
-          {/* MLP Gender Summary */}
-          {gameMode === 'mlp' && pendingPlayers.length > 0 && (
-            <div style={{ marginTop: '0.75rem', padding: '0.75rem', borderRadius: '8px', background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
-              <div style={{ display: 'flex', gap: '1rem', fontSize: '0.85rem' }}>
-                <span>
-                  <span style={{ fontWeight: 600, color: '#3b82f6' }}>♂ Male:</span>{' '}
-                  {pendingPlayers.filter(p => (playerGender[p.localId] ?? 'male') === 'male').length}
-                </span>
-                <span>
-                  <span style={{ fontWeight: 600, color: '#ec4899' }}>♀ Female:</span>{' '}
-                  {pendingPlayers.filter(p => playerGender[p.localId] === 'female').length}
-                </span>
+          {/* MLP Gender Transfer Panel */}
+          {gameMode === 'mlp' && pendingPlayers.some(p => p.checkedIn) && (() => {
+            const checkedInPlayers = pendingPlayers.filter(p => p.checkedIn);
+            const malePlayers = checkedInPlayers.filter(p => (playerGender[p.localId] ?? 'male') === 'male');
+            const femalePlayers = checkedInPlayers.filter(p => playerGender[p.localId] === 'female');
+
+            function toggleSelect(localId: string, shiftKey: boolean, list: PendingPlayer[]) {
+              if (shiftKey && lastClickedGenderRef.current !== null) {
+                const lastIdx = list.findIndex(p => p.localId === lastClickedGenderRef.current);
+                const curIdx = list.findIndex(p => p.localId === localId);
+                if (lastIdx !== -1 && curIdx !== -1) {
+                  const start = Math.min(lastIdx, curIdx);
+                  const end = Math.max(lastIdx, curIdx);
+                  const rangeIds = list.slice(start, end + 1).map(p => p.localId);
+                  setSelectedGenderIds(prev => {
+                    const next = new Set(prev);
+                    for (const id of rangeIds) next.add(id);
+                    return next;
+                  });
+                  lastClickedGenderRef.current = localId;
+                  return;
+                }
+              }
+              setSelectedGenderIds(prev => {
+                const next = new Set(prev);
+                if (next.has(localId)) next.delete(localId);
+                else next.add(localId);
+                return next;
+              });
+              lastClickedGenderRef.current = localId;
+            }
+
+            function moveSelected(direction: 'to-female' | 'to-male') {
+              const targetGender: PlayerGender = direction === 'to-female' ? 'female' : 'male';
+              setPlayerGender(prev => {
+                const updated = { ...prev };
+                for (const id of selectedGenderIds) {
+                  updated[id] = targetGender;
+                }
+                return updated;
+              });
+              setSelectedGenderIds(new Set());
+            }
+
+            function selectAll(gender: 'male' | 'female') {
+              const ids = gender === 'male' ? malePlayers : femalePlayers;
+              const allSelected = ids.length > 0 && ids.every(p => selectedGenderIds.has(p.localId));
+              if (allSelected) {
+                setSelectedGenderIds(prev => {
+                  const next = new Set(prev);
+                  for (const p of ids) next.delete(p.localId);
+                  return next;
+                });
+              } else {
+                setSelectedGenderIds(new Set(ids.map(p => p.localId)));
+              }
+            }
+
+            const allMaleSelected = malePlayers.length > 0 && malePlayers.every(p => selectedGenderIds.has(p.localId));
+            const allFemaleSelected = femalePlayers.length > 0 && femalePlayers.every(p => selectedGenderIds.has(p.localId));
+
+            const listStyle: CSSProperties = {
+              flex: 1,
+              minHeight: '120px',
+              maxHeight: '220px',
+              overflowY: 'auto',
+              border: '1px solid var(--color-border)',
+              borderRadius: '8px',
+              padding: '0.35rem',
+              background: 'var(--color-bg)',
+              listStyle: 'none',
+              margin: 0,
+            };
+
+            const itemBase: CSSProperties = {
+              padding: '0.35rem 0.5rem',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '0.8rem',
+              transition: 'all 0.12s',
+              userSelect: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+            };
+
+            function renderList(items: PendingPlayer[], gender: 'male' | 'female') {
+              return (
+                <ul style={listStyle}>
+                  {items.length === 0 && (
+                    <li style={{ ...itemBase, color: 'var(--color-text-secondary)', cursor: 'default', fontSize: '0.75rem', fontStyle: 'italic' }}>
+                      No {gender} players
+                    </li>
+                  )}
+                  {items.map((p, idx) => {
+                    const selected = selectedGenderIds.has(p.localId);
+                    return (
+                      <li
+                        key={p.localId}
+                        tabIndex={0}
+                        onClick={(e) => toggleSelect(p.localId, e.shiftKey, items)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                            e.preventDefault();
+                            const targetIdx = e.key === 'ArrowDown'
+                              ? Math.min(idx + 1, items.length - 1)
+                              : Math.max(idx - 1, 0);
+                            const targetId = items[targetIdx].localId;
+                            const li = e.currentTarget.parentElement?.children[targetIdx + 1] as HTMLElement | undefined;
+                            li?.focus();
+                            if (e.shiftKey && lastClickedGenderRef.current !== null) {
+                              const anchorIdx = items.findIndex(p => p.localId === lastClickedGenderRef.current);
+                              if (anchorIdx !== -1) {
+                                const start = Math.min(anchorIdx, targetIdx);
+                                const end = Math.max(anchorIdx, targetIdx);
+                                setSelectedGenderIds(prev => {
+                                  const next = new Set(prev);
+                                  for (let i = start; i <= end; i++) {
+                                    next.add(items[i].localId);
+                                  }
+                                  return next;
+                                });
+                              }
+                            }
+                          }
+                        }}
+                        style={{
+                          ...itemBase,
+                          background: selected
+                            ? (gender === 'male' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(236, 72, 153, 0.15)')
+                            : 'transparent',
+                          border: selected
+                            ? `1.5px solid ${gender === 'male' ? '#3b82f6' : '#ec4899'}`
+                            : '1.5px solid transparent',
+                          color: selected ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                          fontWeight: selected ? 600 : 400,
+                          outline: 'none',
+                        }}
+                      >
+                        <span style={{
+                          width: '6px', height: '6px', borderRadius: '50%', flexShrink: 0,
+                          background: selected ? (gender === 'male' ? '#3b82f6' : '#ec4899') : 'var(--color-border)',
+                        }} />
+                        {p.name}
+                      </li>
+                    );
+                  })}
+                </ul>
+              );
+            }
+
+            return (
+              <div style={{ marginTop: '0.75rem', padding: '0.75rem', borderRadius: '8px', background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                    Assign Genders
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+                    Need {mlpConfig.teamCount * 2}M + {mlpConfig.teamCount * 2}F for {mlpConfig.teamCount} teams
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'stretch' }}>
+                  {/* Male column */}
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#3b82f6' }}>
+                        ♂ Male ({malePlayers.length})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => selectAll('male')}
+                        style={{ fontSize: '0.65rem', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                      >
+                        {allMaleSelected ? 'Unselect all' : 'Select all'}
+                      </button>
+                    </div>
+                    {renderList(malePlayers, 'male')}
+                  </div>
+
+                  {/* Arrow buttons */}
+                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '0.4rem', padding: '0 0.15rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => moveSelected('to-female')}
+                      disabled={selectedGenderIds.size === 0}
+                      title="Move selected to Female"
+                      style={{
+                        width: '32px', height: '32px', borderRadius: '6px',
+                        border: '1px solid var(--color-border)',
+                        background: selectedGenderIds.size > 0 ? 'var(--color-bg)' : 'transparent',
+                        cursor: selectedGenderIds.size > 0 ? 'pointer' : 'not-allowed',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '1rem', color: selectedGenderIds.size > 0 ? '#ec4899' : 'var(--color-border)',
+                        opacity: selectedGenderIds.size > 0 ? 1 : 0.4,
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      →
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveSelected('to-male')}
+                      disabled={selectedGenderIds.size === 0}
+                      title="Move selected to Male"
+                      style={{
+                        width: '32px', height: '32px', borderRadius: '6px',
+                        border: '1px solid var(--color-border)',
+                        background: selectedGenderIds.size > 0 ? 'var(--color-bg)' : 'transparent',
+                        cursor: selectedGenderIds.size > 0 ? 'pointer' : 'not-allowed',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '1rem', color: selectedGenderIds.size > 0 ? '#3b82f6' : 'var(--color-border)',
+                        opacity: selectedGenderIds.size > 0 ? 1 : 0.4,
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      ←
+                    </button>
+                  </div>
+
+                  {/* Female column */}
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#ec4899' }}>
+                        ♀ Female ({femalePlayers.length})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => selectAll('female')}
+                        style={{ fontSize: '0.65rem', color: '#ec4899', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                      >
+                        {allFemaleSelected ? 'Unselect all' : 'Select all'}
+                      </button>
+                    </div>
+                    {renderList(femalePlayers, 'female')}
+                  </div>
+                </div>
+
+                <p style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '0.5rem', textAlign: 'center' }}>
+                  Click to select, Shift+click or Shift+Arrow keys for range
+                </p>
               </div>
-              <p style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.5rem' }}>
-                Need at least 2M + 2F per team ({mlpConfig.teamCount} teams = {mlpConfig.teamCount * 2}M + {mlpConfig.teamCount * 2}F)
-              </p>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Pair selected players button */}
           {gameMode === 'doubles' && pairSelection.length === 2 && (

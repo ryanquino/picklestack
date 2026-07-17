@@ -16,6 +16,7 @@ import {
   getFixedPairByPlayerId,
   getQueueEntryByPairId,
   deleteFixedPair,
+  getPlayerRatingsBySession,
   PlayerRow,
 } from '../repository';
 
@@ -214,6 +215,7 @@ export interface QueueEntryWithName {
   partnerPlayerId: string | null;
   partnerPlayerName: string | null;
   queuedAt: string;
+  lastResult: 'win' | 'loss' | null;
 }
 
 /**
@@ -222,6 +224,14 @@ export interface QueueEntryWithName {
  */
 export function getQueue(sessionId: string): QueueEntryWithName[] {
   const queue = getQueueBySession(sessionId);
+
+  // Build lastResult map from player_ratings
+  const ratingRows = getPlayerRatingsBySession(sessionId);
+  const lastResultMap = new Map<string, string | null>();
+  for (const row of ratingRows) {
+    lastResultMap.set(row.player_id, row.last_match_result);
+  }
+
   return queue.map((entry) => {
     const player = getPlayerById(entry.player_id);
     const playerName = player ? player.name : '';
@@ -233,6 +243,10 @@ export function getQueue(sessionId: string): QueueEntryWithName[] {
         const partnerPlayerId =
           pair.player1_id === entry.player_id ? pair.player2_id : pair.player1_id;
         const partnerPlayer = getPlayerById(partnerPlayerId);
+        // Pair's lastResult: 'loss' if either player lost, otherwise use whichever has a result
+        const p1Result = lastResultMap.get(pair.player1_id) ?? null;
+        const p2Result = lastResultMap.get(pair.player2_id) ?? null;
+        const pairLastResult = p1Result === 'loss' || p2Result === 'loss' ? 'loss' : p1Result ?? p2Result ?? null;
         return {
           playerId: entry.player_id,
           sessionId: entry.session_id,
@@ -243,6 +257,7 @@ export function getQueue(sessionId: string): QueueEntryWithName[] {
           partnerPlayerId,
           partnerPlayerName: partnerPlayer ? partnerPlayer.name : '',
           queuedAt: entry.queued_at || '',
+          lastResult: pairLastResult as 'win' | 'loss' | null,
         };
       }
     }
@@ -258,6 +273,7 @@ export function getQueue(sessionId: string): QueueEntryWithName[] {
       partnerPlayerId: null,
       partnerPlayerName: null,
       queuedAt: entry.queued_at || '',
+      lastResult: (lastResultMap.get(entry.player_id) ?? null) as 'win' | 'loss' | null,
     };
   });
 }

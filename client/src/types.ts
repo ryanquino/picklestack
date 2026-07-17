@@ -79,7 +79,7 @@ export type SessionType = 'tournament' | 'open_play';
 export type GameMode = 'doubles' | 'singles' | 'mlp';
 
 /** Matching mode for player assignment */
-export type MatchingMode = 'casual' | 'balanced' | 'competitive' | 'queue';
+export type MatchingMode = 'casual' | 'balanced' | 'competitive' | 'queue' | 'comeback';
 
 /** Session settings for configuration */
 export interface SessionSettings {
@@ -124,6 +124,7 @@ export interface MatchResult {
 /** A completed casual match result with match + player details, for the Results panel */
 export interface CasualMatchResult {
   matchId: string;
+  matchIndex: number;
   courtNumber: number;
   status: string;
   playerIds: string[];
@@ -178,6 +179,7 @@ export interface Achievement {
 /** A single entry in a player's match history */
 export interface MatchHistoryEntry {
   matchId: string;
+  matchIndex: number;
   courtNumber: number;
   teammateIds: string[];
   opponentIds: string[];

@@ -41,7 +41,7 @@ export default function TournamentDashboard({ sessionId, courtCount, onMatchStar
   const [showTeamForm, setShowTeamForm] = useState(false);
   const [teamName, setTeamName] = useState('');
   const [teamPlayers, setTeamPlayers] = useState<string[]>(['', '', '', '']);
-  const [allPlayers, setAllPlayers] = useState<Array<{ id: string; name: string; gender: string | null; status: string }>>([]);
+  const [allPlayers, setAllPlayers] = useState<Array<{ id: string; name: string; gender: string | null; starRating: number; status: string }>>([]);
   const [creatingTeam, setCreatingTeam] = useState(false);
 
   const [completingBracket, setCompletingBracket] = useState<TournamentBracket | null>(null);
@@ -112,7 +112,7 @@ export default function TournamentDashboard({ sessionId, courtCount, onMatchStar
       !assignedPlayerIds.has(p.id) &&
       !selectedInForm.has(p.id) &&
       p.gender === requiredGender
-    );
+    ).sort((a, b) => a.name.localeCompare(b.name));
   }
 
   async function handleDeleteTeam(teamId: string) {
@@ -478,6 +478,54 @@ export default function TournamentDashboard({ sessionId, courtCount, onMatchStar
           </div>
         )}
       </div>
+
+      {/* Available Players */}
+      {(() => {
+        const availableMales = allPlayers.filter(p => p.gender === 'male' && !assignedPlayerIds.has(p.id)).sort((a, b) => a.name.localeCompare(b.name));
+        const availableFemales = allPlayers.filter(p => p.gender === 'female' && !assignedPlayerIds.has(p.id)).sort((a, b) => a.name.localeCompare(b.name));
+        if (availableMales.length === 0 && availableFemales.length === 0) return null;
+        return (
+          <div style={{ marginBottom: '1.5rem' }}>
+            <h3 className="section-title">Available Players</h3>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#3b82f6', marginBottom: '0.5rem' }}>
+                  ♂ Male ({availableMales.length})
+                </div>
+                {availableMales.length === 0 ? (
+                  <p style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>All male players assigned</p>
+                ) : (
+                  <div className="glass-card" style={{ padding: '0.5rem' }}>
+                    {availableMales.map(p => (
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.35rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem' }}>
+                        <span>{p.name}</span>
+                        <span style={{ color: '#f59e0b', fontSize: '0.75rem', letterSpacing: '1px' }}>{'★'.repeat(p.starRating)}{'☆'.repeat(5 - p.starRating)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#ec4899', marginBottom: '0.5rem' }}>
+                  ♀ Female ({availableFemales.length})
+                </div>
+                {availableFemales.length === 0 ? (
+                  <p style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>All female players assigned</p>
+                ) : (
+                  <div className="glass-card" style={{ padding: '0.5rem' }}>
+                    {availableFemales.map(p => (
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.35rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem' }}>
+                        <span>{p.name}</span>
+                        <span style={{ color: '#f59e0b', fontSize: '0.75rem', letterSpacing: '1px' }}>{'★'.repeat(p.starRating)}{'☆'.repeat(5 - p.starRating)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Bracket Actions */}
       {canGenerateBracket && teams.length >= 2 && (

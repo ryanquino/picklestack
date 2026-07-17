@@ -259,6 +259,13 @@ export function getDb(): Database.Database {
     db.exec("ALTER TABLE mlp_match_results ADD COLUMN total_score_b INTEGER NOT NULL DEFAULT 0");
   }
 
+  // Migration: Add last_match_result column to player_ratings for comeback mode
+  const ratingColumnsInfo = db.pragma('table_info(player_ratings)') as Array<{ name: string }>;
+  const hasLastResult = ratingColumnsInfo.some((col) => col.name === 'last_match_result');
+  if (!hasLastResult) {
+    db.exec("ALTER TABLE player_ratings ADD COLUMN last_match_result TEXT DEFAULT NULL");
+  }
+
   return db;
 }
 

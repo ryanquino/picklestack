@@ -19,6 +19,8 @@ interface ActiveMatch {
   status: string;
   startedAt: string;
   completedAt?: string;
+  team1Bracket?: 'winners' | 'losers' | 'neutral' | null;
+  team2Bracket?: 'winners' | 'losers' | 'neutral' | null;
 }
 
 interface CourtGridProps {
@@ -253,11 +255,14 @@ function CourtCard({
           <div className="court-card__teams">
             {/* Team 1 */}
             <div className="court-card__team">
-              {team1.length === 2 && areTeammatesPaired(team1[0].id, team1[1].id, fixedPairs) && (
-                <span className="court-card__pair-indicator" aria-label="Fixed pair">🔗</span>
+              {match.team1Bracket && (
+                <span className={`court-card__bracket-label court-card__bracket-label--${match.team1Bracket}`}>
+                  {match.team1Bracket === 'winners' ? '🏆 Winners' : match.team1Bracket === 'losers' ? '💪 Losers' : '⚖️ Neutral'}
+                </span>
               )}
               {team1.map((player) => {
                 const stats = getStatsForPlayer(player.id, playerStats);
+                const isFixedPair = team1.length === 2 && areTeammatesPaired(team1[0].id, team1[1].id, fixedPairs);
                 return (
                   <div key={player.id} className="court-card__player">
                     <div className="court-card__player-info">
@@ -282,6 +287,9 @@ function CourtCard({
                       {stats && (
                         <div className="court-card__player-details">
                           <StarRating rating={stats.starRating} />
+                          {isFixedPair && (
+                            <span className="court-card__pair-indicator" aria-label="Fixed pair">🔗</span>
+                          )}
                           {stats.streak >= 2 && (
                             <span className="court-card__player-streak" aria-label={`${stats.streak} win streak`}>🔥</span>
                           )}
@@ -310,11 +318,14 @@ function CourtCard({
 
             {/* Team 2 */}
             <div className="court-card__team">
-              {team2.length === 2 && areTeammatesPaired(team2[0].id, team2[1].id, fixedPairs) && (
-                <span className="court-card__pair-indicator" aria-label="Fixed pair">🔗</span>
+              {match.team2Bracket && (
+                <span className={`court-card__bracket-label court-card__bracket-label--${match.team2Bracket}`}>
+                  {match.team2Bracket === 'winners' ? '🏆 Winners' : match.team2Bracket === 'losers' ? '💪 Losers' : '⚖️ Neutral'}
+                </span>
               )}
               {team2.map((player) => {
                 const stats = getStatsForPlayer(player.id, playerStats);
+                const isFixedPair = team2.length === 2 && areTeammatesPaired(team2[0].id, team2[1].id, fixedPairs);
                 return (
                   <div key={player.id} className="court-card__player">
                     <div className="court-card__player-info">
@@ -339,6 +350,9 @@ function CourtCard({
                       {stats && (
                         <div className="court-card__player-details">
                           <StarRating rating={stats.starRating} />
+                          {isFixedPair && (
+                            <span className="court-card__pair-indicator" aria-label="Fixed pair">🔗</span>
+                          )}
                           {stats.streak >= 2 && (
                             <span className="court-card__player-streak" aria-label={`${stats.streak} win streak`}>🔥</span>
                           )}

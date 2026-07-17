@@ -313,6 +313,7 @@ export interface PlayerRatingRow {
   wins: number;
   losses: number;
   star_rating: number;
+  last_match_result: string | null;
 }
 
 export interface PairingHistoryRow {
@@ -412,6 +413,17 @@ export function updatePlayerRatingValues(
     SET rating = @rating, matches_played = @matches_played, wins = @wins, losses = @losses, star_rating = @star_rating
     WHERE player_id = @player_id AND session_id = @session_id
   `).run({ player_id: playerId, session_id: sessionId, ...updates });
+}
+
+export function updatePlayerLastResult(
+  playerId: string,
+  sessionId: string,
+  result: 'win' | 'loss'
+): void {
+  const db = getDb();
+  db.prepare(
+    'UPDATE player_ratings SET last_match_result = ? WHERE player_id = ? AND session_id = ?'
+  ).run(result, playerId, sessionId);
 }
 
 export function deletePlayerRating(playerId: string, sessionId: string): void {

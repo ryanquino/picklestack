@@ -150,7 +150,7 @@ export function endSession(sessionId: string): SessionSummary {
 
 const VALID_SESSION_TYPES: SessionType[] = ['tournament', 'open_play'];
 const VALID_GAME_MODES: GameMode[] = ['doubles', 'singles', 'mlp'];
-const VALID_MATCHING_MODES: MatchingMode[] = ['casual', 'balanced', 'competitive', 'queue'];
+const VALID_MATCHING_MODES: MatchingMode[] = ['casual', 'balanced', 'competitive', 'queue', 'comeback'];
 
 // ============================================================
 // Session Settings Validation & Management

@@ -5,7 +5,7 @@ import { STAR_RATING_LABELS } from '../types';
 
 interface SessionSettingsModalProps {
   sessionId: string;
-  initialSettings: { name: string; courtCount: number };
+  initialSettings: { name: string; courtCount: number; matchingMode?: MatchingMode };
   onConfirm: () => void;
   onClose?: () => void;
 }
@@ -35,7 +35,7 @@ function SessionSettingsModal({
   const [courtCount, setCourtCount] = useState(initialSettings.courtCount);
   const [sessionDurationHours, setSessionDurationHours] = useState(4);
   const [gameMode, setGameMode] = useState<GameMode>('doubles');
-  const [matchingMode, setMatchingMode] = useState<MatchingMode>('balanced');
+  const [matchingMode, setMatchingMode] = useState<MatchingMode>(initialSettings.matchingMode || 'balanced');
 
   const [playerName, setPlayerName] = useState('');
   const [playerStarRating, setPlayerStarRating] = useState<StarRating>(3);
@@ -433,6 +433,7 @@ function SessionSettingsModal({
             <div role="radiogroup" aria-label="Match making mode" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               {([
                 { value: 'casual', label: 'Casual', badge: null, desc: 'Every player faces a fresh opponent each round. Perfect for social sessions where variety and fun matter more than competition.', disabled: false },
+                { value: 'comeback', label: 'Comeback', badge: initialSettings.matchingMode === 'comeback' ? 'ACTIVE' : null, desc: 'Winners play winners and losers play losers in alternating brackets. Can only be set during session creation.', disabled: initialSettings.matchingMode === 'comeback' },
                 { value: 'balanced', label: 'Smart', badge: 'COMING SOON', desc: 'Equal court time for everyone with skill-balanced teams. The algorithm ensures fair play while keeping matches competitive. Best for most open play sessions.', disabled: true },
                 { value: 'competitive', label: 'Competitive', badge: 'COMING SOON', desc: 'Skill rating drives all matchups. Players are grouped by ability for the tightest possible games. Repeat opponents may occur.', disabled: true },
               ] as const).map((option) => (

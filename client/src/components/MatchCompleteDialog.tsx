@@ -240,7 +240,7 @@ function MatchCompleteDialog({
             <div className="match-dialog__team-players">
               {team1.map((player) => (
                 <div key={player.id} className="match-dialog__player">
-                  <PlayerAvatar name={player.name} size={32} />
+                  <span className="match-dialog__player-avatar"><PlayerAvatar name={player.name} size={32} /></span>
                   <span className="match-dialog__player-name">{player.name}</span>
                 </div>
               ))}
@@ -269,7 +269,7 @@ function MatchCompleteDialog({
             <div className="match-dialog__team-players">
               {team2.map((player) => (
                 <div key={player.id} className="match-dialog__player">
-                  <PlayerAvatar name={player.name} size={32} />
+                  <span className="match-dialog__player-avatar"><PlayerAvatar name={player.name} size={32} /></span>
                   <span className="match-dialog__player-name">{player.name}</span>
                 </div>
               ))}

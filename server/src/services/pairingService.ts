@@ -26,6 +26,7 @@ export interface PairingCandidate {
   pairId: string | null;   // the fixed pair ID, or null for individuals
   pairedPlayerIds: [string, string] | null; // both player IDs if pair, null for individuals
   matchesPlayed?: number;  // For pairs: average of both players' matches played (optional, defaults to 0)
+  lastResult?: 'win' | 'loss' | null; // Last match result for comeback mode
 }
 
 export interface PairingInput {
@@ -34,7 +35,7 @@ export interface PairingInput {
   opponentHistory: Map<string, Map<string, number>>; // playerId -> (opponentId -> count)
   matchConfigHistory: Set<string>; // serialized "team1-vs-team2" keys
   sessionId?: string; // Required for diversity bonus calculation
-  pairingMode?: 'casual' | 'balanced' | 'competitive' | 'queue'; // Matching mode
+  pairingMode?: 'casual' | 'balanced' | 'competitive' | 'queue' | 'comeback'; // Matching mode
 }
 
 export interface PairingResult {
@@ -791,7 +792,10 @@ export function selectPairing(input: PairingInput): PairingResult {
     // Pick by earliest queue position only (longest waiting = lowest position)
     const pool2 = fairAndFresh.length > 0 ? fairAndFresh : fairFiltered;
     const minQP = Math.min(...pool2.map(c => c.earliestQueuePosition));
-    bestByEncounters = pool2.filter(c => c.earliestQueuePosition === minQP);
+    const byQP = pool2.filter(c => c.earliestQueuePosition === minQP);
+    // Tiebreak by fewest prior encounters to minimize H2H repeats
+    const minEnc = Math.min(...byQP.map(c => (c as any).encounterCount ?? 0));
+    bestByEncounters = byQP.filter(c => ((c as any).encounterCount ?? 0) === minEnc);
   } else {
     // BALANCED: Fairness + no-repeat soft preference + skill gap
     let fairAndFresh: TeamCombination[];

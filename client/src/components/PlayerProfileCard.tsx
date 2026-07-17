@@ -432,7 +432,7 @@ function MatchHistoryItem({ match }: { match: MatchHistoryEntry }) {
         {scoreText}
       </span>
       <span style={{ color: 'var(--color-text-secondary)', minWidth: '2rem' }}>
-        Ct {match.courtNumber}
+        M{match.matchIndex}
       </span>
       <span style={{ flex: 1, color: 'var(--color-text-primary)' }}>
         {formatTimestamp(match.timestamp)}

@@ -14,6 +14,7 @@ import {
   MatchRow,
   getPlayersBySession,
   getPlayerRatingsBySession,
+  updatePlayerLastResult,
 } from '../repository';
 import {
   applyMatchResult as applyRatingResult,
@@ -101,7 +102,7 @@ export function recordMatchResult(input: MatchResultInput): MatchResult {
 
   const playerIds: string[] = JSON.parse(matchRow.player_ids);
 
-  // Determine team composition based on player count (singles vs doubles)
+  // Determine team composition based on player count
   const isSingles = playerIds.length === 2;
   let winnerIds: string[];
   let loserIds: string[];
@@ -130,9 +131,10 @@ export function recordMatchResult(input: MatchResultInput): MatchResult {
     winnerIds = winningTeam === 'team1' ? team1 : team2;
     loserIds = winningTeam === 'team1' ? team2 : team1;
   } else {
-    // Doubles: 2 players per team
-    const team1: [string, string] = [playerIds[0], playerIds[1]];
-    const team2: [string, string] = [playerIds[2], playerIds[3]];
+    // Doubles: split player IDs in half (handles regular 4, paired 6/8 IDs)
+    const half = Math.floor(playerIds.length / 2);
+    const team1 = playerIds.slice(0, half);
+    const team2 = playerIds.slice(half);
     winnerIds = winningTeam === 'team1' ? team1 : team2;
     loserIds = winningTeam === 'team1' ? team2 : team1;
   }
@@ -155,6 +157,14 @@ export function recordMatchResult(input: MatchResultInput): MatchResult {
 
   // Update player ratings (with optional score margin for multiplier)
   applyRatingResult(sessionId, winnerIds, loserIds, scoreMargin);
+
+  // Update last match result for comeback mode
+  for (const id of winnerIds) {
+    updatePlayerLastResult(id, sessionId, 'win');
+  }
+  for (const id of loserIds) {
+    updatePlayerLastResult(id, sessionId, 'loss');
+  }
 
   // Update pairing history
   if (isSingles) {
@@ -221,7 +231,8 @@ export function updateMatchResult(
   } else {
     // Preserve the existing winner
     const existingWinnerIds = JSON.parse(existingRow.winner_player_ids) as string[];
-    const team1Ids = isSingles ? [playerIds[0]] : [playerIds[0], playerIds[1]];
+    const half = Math.floor(playerIds.length / 2);
+    const team1Ids = isSingles ? [playerIds[0]] : playerIds.slice(0, half);
     winningTeam = team1Ids.every((id) => existingWinnerIds.includes(id)) ? 'team1' : 'team2';
   }
 
@@ -234,8 +245,9 @@ export function updateMatchResult(
     newWinnerIds = winningTeam === 'team1' ? team1 : team2;
     newLoserIds = winningTeam === 'team1' ? team2 : team1;
   } else {
-    const team1: [string, string] = [playerIds[0], playerIds[1]];
-    const team2: [string, string] = [playerIds[2], playerIds[3]];
+    const half = Math.floor(playerIds.length / 2);
+    const team1 = playerIds.slice(0, half);
+    const team2 = playerIds.slice(half);
     newWinnerIds = winningTeam === 'team1' ? team1 : team2;
     newLoserIds = winningTeam === 'team1' ? team2 : team1;
   }
@@ -251,6 +263,14 @@ export function updateMatchResult(
       ? Math.abs(team1Score - team2Score)
       : undefined;
   applyRatingResult(existingRow.session_id, newWinnerIds, newLoserIds, scoreMargin);
+
+  // Update last match result for comeback mode (corrected result)
+  for (const id of newWinnerIds) {
+    updatePlayerLastResult(id, existingRow.session_id, 'win');
+  }
+  for (const id of newLoserIds) {
+    updatePlayerLastResult(id, existingRow.session_id, 'loss');
+  }
 
   // Update the persisted result
   const now = new Date().toISOString();
@@ -377,12 +397,20 @@ function toMatchResult(row: MatchResultRow): MatchResult {
  */
 function updatePairingHistory(
   sessionId: string,
-  team1: [string, string],
-  team2: [string, string]
+  team1: string[],
+  team2: string[]
 ): void {
-  // Teammates: team1[0] & team1[1], team2[0] & team2[1]
-  incrementTeammateOrdered(sessionId, team1[0], team1[1]);
-  incrementTeammateOrdered(sessionId, team2[0], team2[1]);
+  // Teammates: each pair within a team
+  for (let i = 0; i < team1.length; i++) {
+    for (let j = i + 1; j < team1.length; j++) {
+      incrementTeammateOrdered(sessionId, team1[i], team1[j]);
+    }
+  }
+  for (let i = 0; i < team2.length; i++) {
+    for (let j = i + 1; j < team2.length; j++) {
+      incrementTeammateOrdered(sessionId, team2[i], team2[j]);
+    }
+  }
 
   // Opponents: each member of team1 vs each member of team2
   for (const t1Player of team1) {

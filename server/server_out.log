@@ -1,0 +1,12 @@
+
+> pickld@1.0.0 dev:server
+> npm run dev --workspace=server
+
+
+> pickld-server@1.0.0 dev
+> tsx watch src/index.ts
+
+Pickld server listening on port 3000
+[DB] Opening database at: C:\Projects\picklestack-main\server\data\picklestack.db
+
+C:\Projects\picklestack-main>

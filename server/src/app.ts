@@ -234,10 +234,18 @@ app.get('/api/sessions/:sessionId/all-players', (req: Request, res: Response, ne
       pairedPlayerIds.add(pair.player2Id);
     }
 
+    // Fetch star ratings for all players in this session
+    const db = getDb();
+    const ratingRows = db.prepare(
+      'SELECT player_id, star_rating FROM player_ratings WHERE session_id = ?'
+    ).all(sessionId) as Array<{ player_id: string; star_rating: number }>;
+    const starRatingMap = new Map(ratingRows.map(r => [r.player_id, r.star_rating]));
+
     const players = allPlayers.map((p) => ({
       id: p.id,
       name: p.name,
       gender: p.gender ?? null,
+      starRating: starRatingMap.get(p.id) ?? 3,
       status: activeMatchPlayerIds.has(p.id)
         ? 'playing'
         : (queuePlayerIds.has(p.id) || pairedPlayerIds.has(p.id))
@@ -313,27 +321,64 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response, next: NextFunc
     const courts = courtService.getCourts(sessionId);
     const activeMatches = getActiveMatchesBySession(sessionId);
 
-    // Get pairing mode from the raw session row
+    // Get matching mode from the raw session row
     const sessionRow = getSessionById(sessionId)!;
-    const pairingMode = sessionRow.pairing_mode;
+    const sessionMatchingMode = sessionRow.matching_mode;
 
     // Get player stats and achievements
     const playerStats = matchResultService.getPlayerStats(sessionId);
     const achievements = achievementsService.getSessionAchievementsAll(sessionId);
 
-    const matches = activeMatches.map((match: MatchRow) => ({
-      id: match.id,
-      sessionId: match.session_id,
-      courtNumber: match.court_number,
-      playerIds: JSON.parse(match.player_ids) as string[],
-      players: (JSON.parse(match.player_ids) as string[]).map((playerId) => {
-        const player = getPlayerById(playerId);
-        return player ? { id: player.id, name: player.name } : { id: playerId, name: '(removed)' };
-      }),
-      status: match.status,
-      startedAt: match.started_at,
-      completedAt: match.completed_at,
-    }));
+    // Build lastResult map for bracket labels
+    const ratingRows = getPlayerRatingsBySession(sessionId);
+    const lastResultMap = new Map<string, string | null>();
+    for (const row of ratingRows) {
+      lastResultMap.set(row.player_id, row.last_match_result);
+    }
+
+    const matches = activeMatches.map((match: MatchRow) => {
+      const playerIds = JSON.parse(match.player_ids) as string[];
+      let team1Bracket: string | null = null;
+      let team2Bracket: string | null = null;
+
+      // For comeback mode: determine bracket labels from player results
+      // Works for all doubles variants: regular (4 IDs), paired (6, 8 IDs), mixed
+      if (playerIds.length >= 4 && sessionMatchingMode === 'comeback') {
+        const half = Math.floor(playerIds.length / 2);
+        const team1PlayerIds = playerIds.slice(0, half);
+        const team2PlayerIds = playerIds.slice(half);
+        const team1Results = team1PlayerIds.map(id => lastResultMap.get(id));
+        const team2Results = team2PlayerIds.map(id => lastResultMap.get(id));
+        const allResults = [...team1Results, ...team2Results];
+        const hasAnyResult = allResults.some(r => r === 'win' || r === 'loss');
+
+        if (!hasAnyResult) {
+          team1Bracket = 'neutral';
+          team2Bracket = 'neutral';
+        } else {
+          const team1AllWinners = team1Results.every(r => r === 'win');
+          const team2AllWinners = team2Results.every(r => r === 'win');
+          team1Bracket = team1AllWinners ? 'winners' : 'losers';
+          team2Bracket = team2AllWinners ? 'winners' : 'losers';
+        }
+      }
+
+      return {
+        id: match.id,
+        sessionId: match.session_id,
+        courtNumber: match.court_number,
+        playerIds,
+        players: playerIds.map((playerId) => {
+          const player = getPlayerById(playerId);
+          return player ? { id: player.id, name: player.name } : { id: playerId, name: '(removed)' };
+        }),
+        status: match.status,
+        startedAt: match.started_at,
+        completedAt: match.completed_at,
+        team1Bracket,
+        team2Bracket,
+      };
+    });
 
     // Compute session intelligence data
     const diversityMap = computeSessionDiversity(sessionId);
@@ -385,7 +430,7 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response, next: NextFunc
     res.json({
       session: {
         ...session,
-        pairingMode,
+        pairingMode: sessionRow.pairing_mode,
         sessionType: session.sessionType,
         gameMode: session.gameMode,
         matchingMode: session.matchingMode,
@@ -471,6 +516,13 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
     const courts = courtService.getCourts(sessionId);
     const activeMatches = getActiveMatchesBySession(sessionId);
 
+    // Get last match result for each player (for comeback bracket sorting)
+    const ratingRows = getPlayerRatingsBySession(sessionId);
+    const lastResultMap = new Map<string, string | null>();
+    for (const row of ratingRows) {
+      lastResultMap.set(row.player_id, row.last_match_result);
+    }
+
     // Get player stats and achievements for enrichment
     const playerStats = matchResultService.getPlayerStats(sessionId);
     const achievements = achievementsService.getSessionAchievementsAll(sessionId);
@@ -507,6 +559,7 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
         isMvp: entry.playerId === mvpPlayerId,
         achievements: achievementsByPlayer.get(entry.playerId) || [],
         queuedAt: entry.queuedAt,
+        lastResult: (lastResultMap.get(entry.playerId) ?? null) as 'win' | 'loss' | null,
       };
     });
 
@@ -1069,6 +1122,8 @@ app.get('/api/sessions/:sessionId/match-results', (req: Request, res: Response, 
 
     const matches = getMatchesBySession(sessionId);
     const matchById = new Map(matches.map(m => [m.id, m]));
+    const matchNumberMap = new Map<string, number>();
+    matches.forEach((m, idx) => { matchNumberMap.set(m.id, idx + 1); });
 
     const resultRows = getMatchResultsBySession(sessionId);
 
@@ -1078,17 +1133,22 @@ app.get('/api/sessions/:sessionId/match-results', (req: Request, res: Response, 
         if (!match) return null;
         const playerIds: string[] = JSON.parse(match.player_ids);
         const winnerIds: string[] = JSON.parse(row.winner_player_ids);
+        const loserIds: string[] = JSON.parse(row.loser_player_ids);
+        const half = Math.floor(playerIds.length / 2);
+        const team1Ids = playerIds.slice(0, half);
+        const team2Ids = playerIds.slice(half);
         const winningTeam: 'team1' | 'team2' =
-          winnerIds.every(id => playerIds.slice(0, 2).includes(id)) ? 'team1' : 'team2';
+          winnerIds.every(id => team1Ids.includes(id)) ? 'team1' : 'team2';
 
         return {
           matchId: match.id,
+          matchIndex: matchNumberMap.get(match.id) ?? 0,
           courtNumber: match.court_number,
           status: match.status,
           playerIds,
           playerNames: playerIds.map(id => playerName.get(id) ?? 'Unknown'),
-          team1PlayerIds: playerIds.slice(0, 2),
-          team2PlayerIds: playerIds.slice(2, 4),
+          team1PlayerIds: team1Ids,
+          team2PlayerIds: team2Ids,
           team1Score: row.team1_score,
           team2Score: row.team2_score,
           winningTeam,
@@ -1240,15 +1300,18 @@ app.get('/api/sessions/:sessionId/players/:playerId/history', (req: Request, res
     const resultRows = getMatchResultsBySession(sessionId);
     const resultByMatchId = new Map(resultRows.map(r => [r.match_id, r]));
 
+    const allSessionMatches = getMatchesBySession(sessionId);
+    const matchNumberMap = new Map<string, number>();
+    allSessionMatches.forEach((m, idx) => { matchNumberMap.set(m.id, idx + 1); });
+
     const history: MatchHistoryEntry[] = matches.map(match => {
       const playerIds: string[] = JSON.parse(match.player_ids);
-      const playerIndex = playerIds.indexOf(playerId);
-      const teammateIds = playerIndex < 2
-        ? [playerIds[playerIndex === 0 ? 1 : 0]]
-        : [playerIds[playerIndex === 2 ? 3 : 2]];
-      const opponentIds = playerIndex < 2
-        ? [playerIds[2], playerIds[3]]
-        : [playerIds[0], playerIds[1]];
+      const half = Math.floor(playerIds.length / 2);
+      const team1 = playerIds.slice(0, half);
+      const team2 = playerIds.slice(half);
+      const onTeam1 = team1.includes(playerId);
+      const teammateIds = onTeam1 ? team1.filter(id => id !== playerId) : team2.filter(id => id !== playerId);
+      const opponentIds = onTeam1 ? team2 : team1;
 
       const matchResult = resultByMatchId.get(match.id);
       let result: 'win' | 'loss' | 'skipped' = 'skipped';
@@ -1259,6 +1322,7 @@ app.get('/api/sessions/:sessionId/players/:playerId/history', (req: Request, res
 
       return {
         matchId: match.id,
+        matchIndex: matchNumberMap.get(match.id) ?? 0,
         courtNumber: match.court_number,
         teammateIds,
         opponentIds,
@@ -1382,15 +1446,19 @@ app.get('/api/sessions/:sessionId/players/:playerId/profile', (req: Request, res
     const resultRows = getMatchResultsBySession(sessionId);
     const resultByMatchId = new Map(resultRows.map(r => [r.match_id, r]));
 
+    // Get all session matches to compute match numbers
+    const allSessionMatches = getMatchesBySession(sessionId);
+    const matchNumberMap = new Map<string, number>();
+    allSessionMatches.forEach((m, idx) => { matchNumberMap.set(m.id, idx + 1); });
+
     const matchHistory: MatchHistoryEntry[] = matches.map(match => {
       const playerIds: string[] = JSON.parse(match.player_ids);
-      const playerIndex = playerIds.indexOf(playerId);
-      const teammateIds = playerIndex < 2
-        ? [playerIds[playerIndex === 0 ? 1 : 0]]
-        : [playerIds[playerIndex === 2 ? 3 : 2]];
-      const opponentIds = playerIndex < 2
-        ? [playerIds[2], playerIds[3]]
-        : [playerIds[0], playerIds[1]];
+      const half = Math.floor(playerIds.length / 2);
+      const team1 = playerIds.slice(0, half);
+      const team2 = playerIds.slice(half);
+      const onTeam1 = team1.includes(playerId);
+      const teammateIds = onTeam1 ? team1.filter(id => id !== playerId) : team2.filter(id => id !== playerId);
+      const opponentIds = onTeam1 ? team2 : team1;
 
       const matchResult = resultByMatchId.get(match.id);
       let result: 'win' | 'loss' | 'skipped' = 'skipped';
@@ -1401,6 +1469,7 @@ app.get('/api/sessions/:sessionId/players/:playerId/profile', (req: Request, res
 
       return {
         matchId: match.id,
+        matchIndex: matchNumberMap.get(match.id) ?? 0,
         courtNumber: match.court_number,
         teammateIds,
         opponentIds,

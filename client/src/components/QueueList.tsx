@@ -40,6 +40,7 @@ interface QueueEntry {
   partnerPlayerId?: string | null;
   partnerPlayerName?: string | null;
   queuedAt?: string;
+  lastResult?: 'win' | 'loss' | null;
 }
 
 interface QueueListProps {
@@ -50,6 +51,7 @@ interface QueueListProps {
   diversity?: Record<string, number>;
   waitEstimates?: Record<string, number | null>;
   nextMatchPlayerIds?: string[];
+  variant?: 'default' | 'winners' | 'losers' | 'neutral';
   onMoveUp: (playerId: string) => Promise<void>;
   onMoveDown: (playerId: string) => Promise<void>;
   onRemove: (playerId: string) => Promise<void>;
@@ -122,13 +124,14 @@ function StreakBadge({ streak }: { streak: number }) {
   );
 }
 
-function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'balanced', diversity, waitEstimates, nextMatchPlayerIds, onMoveUp, onMoveDown, onRemove, onPlayerClick, onPairChanged, onStarRatingChange }: QueueListProps) {
+function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'balanced', diversity, waitEstimates, nextMatchPlayerIds, variant = 'default', onMoveUp, onMoveDown, onRemove, onPlayerClick, onPairChanged, onStarRatingChange }: QueueListProps) {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [expandedPlayerId, setExpandedPlayerId] = useState<string | null>(null);
   const [pairModalPlayerId, setPairModalPlayerId] = useState<string | null>(null);
   const onDeckSet = getOnDeckPlayerIds(queue, gameMode, matchingMode);
 
   if (queue.length === 0) {
+    if (variant !== 'default') return null;
     return (
       <div>
         <h2>Queue</h2>
@@ -168,7 +171,7 @@ function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'bal
 
   return (
     <div>
-      <h2>Queue</h2>
+      {variant === 'default' && <h2>Queue</h2>}
       <ul className="avatar-queue">
         {sortedQueue.map((entry, index) => {
           const isPair = entry.isPairSlot === true;
@@ -194,7 +197,7 @@ function QueueList({ queue, sessionId, gameMode = 'doubles', matchingMode = 'bal
           return (
             <li
               key={entry.playerId}
-              className={`avatar-queue__item${isNextMatch ? ' avatar-queue__item--next' : isOnDeck ? ' avatar-queue__item--ondeck' : ''}`}
+              className={`avatar-queue__item${isNextMatch ? ' avatar-queue__item--next' : isOnDeck ? ' avatar-queue__item--ondeck' : ''}${variant === 'winners' ? ' avatar-queue__item--winner' : variant === 'losers' ? ' avatar-queue__item--loser' : ''}`}
             >
               {/* Row — click row to expand, click name to open profile */}
               <div

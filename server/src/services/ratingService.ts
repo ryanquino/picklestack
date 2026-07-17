@@ -175,6 +175,7 @@ export function initializePlayerRating(
     wins: 0,
     losses: 0,
     star_rating: star,
+    last_match_result: null,
   });
 }
 
@@ -220,6 +221,7 @@ function getPlayerRatingRowOrDefault(sessionId: string, playerId: string): Playe
     wins: 0,
     losses: 0,
     star_rating: 3,
+    last_match_result: null,
   };
   upsertPlayerRating(defaultRow);
   return defaultRow;

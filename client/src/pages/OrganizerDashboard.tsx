@@ -27,6 +27,7 @@ interface QueueEntry {
   sessionId: string;
   position: number;
   playerName: string;
+  lastResult?: 'win' | 'loss' | null;
 }
 
 interface EnrichedQueueEntry extends QueueEntry {
@@ -662,24 +663,124 @@ function OrganizerDashboard() {
 
               {/* Queue second */}
               <ErrorBoundary sectionName="Queue">
-              <QueuePanel
-                queue={enrichedQueue}
-                sessionId={sessionId!}
-                gameMode={state.session.gameMode || 'doubles'}
-                matchingMode={state.session.matchingMode || 'balanced'}
-                diversity={state.diversity}
-                waitEstimates={state.waitEstimates}
-                fixedPairs={fixedPairs}
-                activeMatchPlayerIds={state.activeMatches.flatMap(m => m.playerIds || [])}
-                onMoveUp={handleMoveUp}
-                onMoveDown={handleMoveDown}
-                onRemove={handleRemove}
-                onPlayerClick={handlePlayerClick}
-                onCheckIn={handleCheckIn}
-                onPairChanged={loadSession}
-                onStarRatingChange={handleStarRatingChange}
-                nextMatchPlayerIds={(state as any).nextMatchPlayerIds}
-              />
+              {state.session.matchingMode === 'comeback' ? (
+                <>
+                {(() => {
+                  const gameMode = state.session.gameMode || 'doubles';
+                  const playersPerMatch = gameMode === 'singles' ? 2 : 4;
+                  const activeIds = new Set(state.activeMatches.flatMap(m => m.playerIds || []));
+                  const getBracketNextIds = (bracketQueue: EnrichedQueueEntry[]) =>
+                    bracketQueue
+                      .filter(e => !activeIds.has(e.playerId))
+                      .slice(0, playersPerMatch)
+                      .flatMap(e => [e.playerId, ...(e.isPairSlot && e.partnerPlayerId ? [e.partnerPlayerId] : [])]);
+                  const winnersNext = getBracketNextIds(enrichedQueue.filter(e => e.lastResult === 'win'));
+                  const losersNext = getBracketNextIds(enrichedQueue.filter(e => e.lastResult === 'loss'));
+                  const neutralNext = getBracketNextIds(enrichedQueue.filter(e => e.lastResult == null));
+                  return (
+                <div className="comeback-queues">
+                  <div className="comeback-bracket comeback-bracket--winners">
+                    <div className="comeback-bracket__header">
+                      <span className="comeback-bracket__title"><span className="comeback-bracket__icon">🏆</span> Winners</span>
+                      <span className="comeback-bracket__count">{enrichedQueue.filter(e => e.lastResult === 'win').length}</span>
+                    </div>
+                    <div className="comeback-bracket__body">
+                      <QueuePanel
+                        queue={enrichedQueue.filter(e => e.lastResult === 'win')}
+                        sessionId={sessionId!}
+                        gameMode={gameMode}
+                        matchingMode={state.session.matchingMode || 'balanced'}
+                        diversity={state.diversity}
+                        waitEstimates={state.waitEstimates}
+                        variant="winners"
+                        activeMatchPlayerIds={state.activeMatches.flatMap(m => m.playerIds || [])}
+                        onMoveUp={handleMoveUp}
+                        onMoveDown={handleMoveDown}
+                        onRemove={handleRemove}
+                        onPlayerClick={handlePlayerClick}
+                        onCheckIn={handleCheckIn}
+                        onPairChanged={loadSession}
+                        onStarRatingChange={handleStarRatingChange}
+                        nextMatchPlayerIds={winnersNext}
+                      />
+                    </div>
+                  </div>
+                  <div className="comeback-bracket comeback-bracket--losers">
+                    <div className="comeback-bracket__header">
+                      <span className="comeback-bracket__title"><span className="comeback-bracket__icon">💪</span> Losers</span>
+                      <span className="comeback-bracket__count">{enrichedQueue.filter(e => e.lastResult === 'loss').length}</span>
+                    </div>
+                    <div className="comeback-bracket__body">
+                      <QueuePanel
+                        queue={enrichedQueue.filter(e => e.lastResult === 'loss')}
+                        sessionId={sessionId!}
+                        gameMode={gameMode}
+                        matchingMode={state.session.matchingMode || 'balanced'}
+                        diversity={state.diversity}
+                        waitEstimates={state.waitEstimates}
+                        variant="losers"
+                        activeMatchPlayerIds={state.activeMatches.flatMap(m => m.playerIds || [])}
+                        onMoveUp={handleMoveUp}
+                        onMoveDown={handleMoveDown}
+                        onRemove={handleRemove}
+                        onPlayerClick={handlePlayerClick}
+                        onCheckIn={handleCheckIn}
+                        onPairChanged={loadSession}
+                        onStarRatingChange={handleStarRatingChange}
+                        nextMatchPlayerIds={losersNext}
+                      />
+                    </div>
+                  </div>
+                  <div className="comeback-bracket comeback-bracket--neutral">
+                    <div className="comeback-bracket__header">
+                      <span className="comeback-bracket__title"><span className="comeback-bracket__icon">⏳</span> Neutral</span>
+                      <span className="comeback-bracket__count">{enrichedQueue.filter(e => e.lastResult == null).length}</span>
+                    </div>
+                    <div className="comeback-bracket__body">
+                      <QueuePanel
+                        queue={enrichedQueue.filter(e => e.lastResult == null)}
+                        sessionId={sessionId!}
+                        gameMode={gameMode}
+                        matchingMode={state.session.matchingMode || 'balanced'}
+                        diversity={state.diversity}
+                        waitEstimates={state.waitEstimates}
+                        variant="neutral"
+                        activeMatchPlayerIds={state.activeMatches.flatMap(m => m.playerIds || [])}
+                        onMoveUp={handleMoveUp}
+                        onMoveDown={handleMoveDown}
+                        onRemove={handleRemove}
+                        onPlayerClick={handlePlayerClick}
+                        onCheckIn={handleCheckIn}
+                        onPairChanged={loadSession}
+                        onStarRatingChange={handleStarRatingChange}
+                        nextMatchPlayerIds={neutralNext}
+                      />
+                    </div>
+                  </div>
+                </div>
+                );
+                })()}
+                </>
+              ) : (
+                <QueuePanel
+                  queue={enrichedQueue}
+                  sessionId={sessionId!}
+                  gameMode={state.session.gameMode || 'doubles'}
+                  matchingMode={state.session.matchingMode || 'balanced'}
+                  diversity={state.diversity}
+                  waitEstimates={state.waitEstimates}
+                  fixedPairs={fixedPairs}
+                  activeMatchPlayerIds={state.activeMatches.flatMap(m => m.playerIds || [])}
+                  onMoveUp={handleMoveUp}
+                  onMoveDown={handleMoveDown}
+                  onRemove={handleRemove}
+                  onPlayerClick={handlePlayerClick}
+                  onCheckIn={handleCheckIn}
+                  onPairChanged={loadSession}
+                  onStarRatingChange={handleStarRatingChange}
+                  nextMatchPlayerIds={(state as any).nextMatchPlayerIds}
+                />
+              )}
               </ErrorBoundary>
             </>
           )}
@@ -888,6 +989,7 @@ function OrganizerDashboard() {
           initialSettings={{
             name: state.session.name,
             courtCount: state.session.courtCount,
+            matchingMode: state.session.matchingMode,
           }}
           onConfirm={() => {
             setShowSettingsModal(false);

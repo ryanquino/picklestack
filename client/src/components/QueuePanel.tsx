@@ -33,6 +33,7 @@ interface QueuePanelProps {
   nextMatchPlayerIds?: string[];
   fixedPairs?: FixedPair[];
   activeMatchPlayerIds?: string[];
+  variant?: 'default' | 'winners' | 'losers' | 'neutral';
   onMoveUp: (playerId: string) => Promise<void>;
   onMoveDown: (playerId: string) => Promise<void>;
   onRemove: (playerId: string) => Promise<void>;
@@ -52,6 +53,7 @@ function QueuePanel({
   nextMatchPlayerIds,
   fixedPairs,
   activeMatchPlayerIds,
+  variant = 'default',
   onMoveUp,
   onMoveDown,
   onRemove,
@@ -69,25 +71,29 @@ function QueuePanel({
   }
 
   return (
-    <div className="queue-panel">
+    <div className={`queue-panel${variant === 'winners' ? ' queue-panel--winners' : variant === 'losers' ? ' queue-panel--losers' : variant === 'neutral' ? ' queue-panel--neutral' : ''}`}>
       <div className="queue-panel__header">
         <div className="flex items-center gap-sm">
-          <h2 className="m-0 text-lg font-semibold">QUEUE</h2>
+          <h2 className="m-0 text-lg font-semibold">
+            {variant === 'winners' ? '🏆 WINNERS' : variant === 'losers' ? '💪 LOSERS' : variant === 'neutral' ? '⏳ NEUTRAL' : 'QUEUE'}
+          </h2>
           <span className="status-badge status-badge--available">{queue.length}</span>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowCheckIn((prev) => !prev)}
-          className="session-header__btn"
-          aria-label="Add player"
-          aria-expanded={showCheckIn}
-        >
-          <span className="session-header__btn-icon">+</span>
-          <span className="session-header__btn-label">Add Player</span>
-        </button>
+        {variant === 'default' && (
+          <button
+            type="button"
+            onClick={() => setShowCheckIn((prev) => !prev)}
+            className="session-header__btn"
+            aria-label="Add player"
+            aria-expanded={showCheckIn}
+          >
+            <span className="session-header__btn-icon">+</span>
+            <span className="session-header__btn-label">Add Player</span>
+          </button>
+        )}
       </div>
 
-      {showCheckIn && (
+      {showCheckIn && variant === 'default' && (
         <div className="queue-panel__checkin-area">
           <CheckInForm sessionId={sessionId} onCheckIn={handleCheckIn} />
         </div>
@@ -102,6 +108,7 @@ function QueuePanel({
           diversity={diversity}
           waitEstimates={waitEstimates}
           nextMatchPlayerIds={nextMatchPlayerIds}
+          variant={variant}
           onMoveUp={onMoveUp}
           onMoveDown={onMoveDown}
           onRemove={onRemove}

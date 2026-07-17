@@ -457,6 +457,14 @@ function PlayerView() {
   const myWaitEstimate = playerId ? waitEstimates?.[playerId] : undefined;
   const myDiversity = playerId ? diversity?.[playerId] : undefined;
 
+  const playersPerMatch = gameMode === 'singles' ? 2 : 4;
+  const activeIds = new Set(activeMatches.flatMap(m => m.playerIds || []));
+  const getBracketNextSet = (bracketFilter: (e: typeof queue[0]) => boolean) =>
+    new Set(queue.filter(bracketFilter).filter(e => !activeIds.has(e.playerId)).slice(0, playersPerMatch).map(e => e.playerId));
+  const winnersNextSet = session.matchingMode === 'comeback' ? getBracketNextSet(e => e.lastResult === 'win') : nextMatchSet;
+  const losersNextSet = session.matchingMode === 'comeback' ? getBracketNextSet(e => e.lastResult === 'loss') : nextMatchSet;
+  const neutralNextSet = session.matchingMode === 'comeback' ? getBracketNextSet(e => e.lastResult == null) : nextMatchSet;
+
   function getCourtDisplayName(courtNumber: number): string {
     return courtNames[String(courtNumber)] || `Court ${courtNumber}`;
   }
@@ -624,43 +632,166 @@ function PlayerView() {
 
       {/* Queue */}
       <section aria-label="Queue" className="player-view__queue">
-        <h2>Queue</h2>
-        {queue.length === 0 ? (
-          <p className="empty-state">No players in queue</p>
+        {session.matchingMode === 'comeback' ? (
+          <>
+          <div className="comeback-queues">
+            <div className="comeback-bracket comeback-bracket--winners">
+              <div className="comeback-bracket__header">
+                <span className="comeback-bracket__title"><span className="comeback-bracket__icon">🏆</span> Winners</span>
+                <span className="comeback-bracket__count">{queue.filter(e => e.lastResult === 'win').length}</span>
+              </div>
+              <div className="comeback-bracket__body">
+                {queue.filter(e => e.lastResult === 'win').length === 0 ? (
+                  <p className="comeback-bracket__empty">No winners yet</p>
+                ) : (
+                  <ul className="avatar-queue" aria-label="Winners queue">
+                    {queue.filter(e => e.lastResult === 'win').map((entry, idx) => {
+                      const isMe = entry.playerId === playerId;
+                      const isNext = winnersNextSet.has(entry.playerId);
+                      const isOnDeck = !isNext && idx < 4;
+                      return (
+                        <li key={entry.playerId} className={`avatar-queue__item avatar-queue__item--winner${isMe ? ' avatar-queue__item--me' : ''}${isNext ? ' avatar-queue__item--next' : isOnDeck ? ' avatar-queue__item--ondeck' : ''}`}>
+                          <div className="avatar-queue__row">
+                            <span className="avatar-queue__dot">{isMe ? '🟢' : isNext ? '🟢' : isOnDeck ? '🟡' : '⚪'}</span>
+                            <span className="avatar-queue__name avatar-queue__name-link" onClick={() => setSelectedProfilePlayerId(entry.playerId)}>
+                              {entry.playerName}{isMe ? ' (You)' : ''}
+                              {entry.streak >= 2 && <span className="avatar-queue__streak">🔥</span>}
+                              {entry.streak <= -2 && <span className="avatar-queue__streak">❄️</span>}
+                            </span>
+                            {entry.starRating && (
+                              <span className="avatar-queue__stars">{'★'.repeat(entry.starRating)}{'☆'.repeat(5 - entry.starRating)}</span>
+                            )}
+                            <span className="avatar-queue__record">{entry.wins}-{entry.losses}</span>
+                            <span className={`avatar-queue__wait${isNext ? ' avatar-queue__wait--now' : isOnDeck ? ' avatar-queue__wait--ondeck' : ''}`}>
+                              {entry.queuedAt && entry.queuedAt.length > 0 && <WaitTimer since={entry.queuedAt} />}
+                            </span>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </div>
+            <div className="comeback-bracket comeback-bracket--losers">
+              <div className="comeback-bracket__header">
+                <span className="comeback-bracket__title"><span className="comeback-bracket__icon">💪</span> Losers</span>
+                <span className="comeback-bracket__count">{queue.filter(e => e.lastResult === 'loss').length}</span>
+              </div>
+              <div className="comeback-bracket__body">
+                {queue.filter(e => e.lastResult === 'loss').length === 0 ? (
+                  <p className="comeback-bracket__empty">No losers yet</p>
+                ) : (
+                  <ul className="avatar-queue" aria-label="Losers queue">
+                    {queue.filter(e => e.lastResult === 'loss').map((entry, idx) => {
+                      const isMe = entry.playerId === playerId;
+                      const isNext = losersNextSet.has(entry.playerId);
+                      const isOnDeck = !isNext && idx < 4;
+                      return (
+                        <li key={entry.playerId} className={`avatar-queue__item avatar-queue__item--loser${isMe ? ' avatar-queue__item--me' : ''}${isNext ? ' avatar-queue__item--next' : isOnDeck ? ' avatar-queue__item--ondeck' : ''}`}>
+                          <div className="avatar-queue__row">
+                            <span className="avatar-queue__dot">{isMe ? '🟢' : isNext ? '🟢' : isOnDeck ? '🟡' : '⚪'}</span>
+                            <span className="avatar-queue__name avatar-queue__name-link" onClick={() => setSelectedProfilePlayerId(entry.playerId)}>
+                              {entry.playerName}{isMe ? ' (You)' : ''}
+                              {entry.streak >= 2 && <span className="avatar-queue__streak">🔥</span>}
+                              {entry.streak <= -2 && <span className="avatar-queue__streak">❄️</span>}
+                            </span>
+                            {entry.starRating && (
+                              <span className="avatar-queue__stars">{'★'.repeat(entry.starRating)}{'☆'.repeat(5 - entry.starRating)}</span>
+                            )}
+                            <span className="avatar-queue__record">{entry.wins}-{entry.losses}</span>
+                            <span className={`avatar-queue__wait${isNext ? ' avatar-queue__wait--now' : isOnDeck ? ' avatar-queue__wait--ondeck' : ''}`}>
+                              {entry.queuedAt && entry.queuedAt.length > 0 && <WaitTimer since={entry.queuedAt} />}
+                            </span>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </div>
+            <div className="comeback-bracket comeback-bracket--neutral">
+              <div className="comeback-bracket__header">
+                <span className="comeback-bracket__title"><span className="comeback-bracket__icon">⏳</span> Neutral</span>
+                <span className="comeback-bracket__count">{queue.filter(e => e.lastResult == null).length}</span>
+              </div>
+              <div className="comeback-bracket__body">
+                {queue.filter(e => e.lastResult == null).length === 0 ? (
+                  <p className="comeback-bracket__empty">No neutral players</p>
+                ) : (
+                  <ul className="avatar-queue" aria-label="Neutral queue">
+                    {queue.filter(e => e.lastResult == null).map((entry, idx) => {
+                      const isMe = entry.playerId === playerId;
+                      const isNext = neutralNextSet.has(entry.playerId);
+                      const isOnDeck = !isNext && idx < 4;
+                      return (
+                        <li key={entry.playerId} className={`avatar-queue__item${isMe ? ' avatar-queue__item--me' : ''}${isNext ? ' avatar-queue__item--next' : isOnDeck ? ' avatar-queue__item--ondeck' : ''}`}>
+                          <div className="avatar-queue__row">
+                            <span className="avatar-queue__dot">{isMe ? '🟢' : isNext ? '🟢' : isOnDeck ? '🟡' : '⚪'}</span>
+                            <span className="avatar-queue__name avatar-queue__name-link" onClick={() => setSelectedProfilePlayerId(entry.playerId)}>
+                              {entry.playerName}{isMe ? ' (You)' : ''}
+                              {entry.streak >= 2 && <span className="avatar-queue__streak">🔥</span>}
+                              {entry.streak <= -2 && <span className="avatar-queue__streak">❄️</span>}
+                            </span>
+                            {entry.starRating && (
+                              <span className="avatar-queue__stars">{'★'.repeat(entry.starRating)}{'☆'.repeat(5 - entry.starRating)}</span>
+                            )}
+                            <span className="avatar-queue__record">{entry.wins}-{entry.losses}</span>
+                            <span className={`avatar-queue__wait${isNext ? ' avatar-queue__wait--now' : isOnDeck ? ' avatar-queue__wait--ondeck' : ''}`}>
+                              {entry.queuedAt && entry.queuedAt.length > 0 && <WaitTimer since={entry.queuedAt} />}
+                            </span>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+          </>
         ) : (
-          <ul className="avatar-queue" aria-label="Queued players">
-            {[...queue].map((entry, idx) => {
-              const isMe = entry.playerId === playerId;
-              const isNext = nextMatchSet.has(entry.playerId);
-              const isOnDeck = !isNext && idx < 6;
+          <>
+            <h2>Queue</h2>
+            {queue.length === 0 ? (
+              <p className="empty-state">No players in queue</p>
+            ) : (
+              <ul className="avatar-queue" aria-label="Queued players">
+                {[...queue].map((entry, idx) => {
+                  const isMe = entry.playerId === playerId;
+                  const isNext = nextMatchSet.has(entry.playerId);
+                  const isOnDeck = !isNext && idx < 6;
 
-              return (
-                <li
-                  key={entry.playerId}
-                  className={`avatar-queue__item${isMe ? ' avatar-queue__item--me' : ''}${isNext ? ' avatar-queue__item--next' : isOnDeck ? ' avatar-queue__item--ondeck' : ''}`}
-                >
-                  <div className="avatar-queue__row">
-                    <span className="avatar-queue__dot">{isMe ? '🟢' : isNext ? '🟢' : isOnDeck ? '🟡' : '⚪'}</span>
-                    <span
-                      className="avatar-queue__name avatar-queue__name-link"
-                      onClick={() => setSelectedProfilePlayerId(entry.playerId)}
+                  return (
+                    <li
+                      key={entry.playerId}
+                      className={`avatar-queue__item${isMe ? ' avatar-queue__item--me' : ''}${isNext ? ' avatar-queue__item--next' : isOnDeck ? ' avatar-queue__item--ondeck' : ''}`}
                     >
-                      {entry.playerName}{isMe ? ' (You)' : ''}
-                      {entry.streak >= 2 && <span className="avatar-queue__streak">🔥</span>}
-                      {entry.streak <= -2 && <span className="avatar-queue__streak">❄️</span>}
-                    </span>
-                    {entry.starRating && (
-                      <span className="avatar-queue__stars">{'★'.repeat(entry.starRating)}{'☆'.repeat(5 - entry.starRating)}</span>
-                    )}
-                    <span className="avatar-queue__record">{entry.wins}-{entry.losses}</span>
-                    <span className={`avatar-queue__wait${isNext ? ' avatar-queue__wait--now' : isOnDeck ? ' avatar-queue__wait--ondeck' : ''}`}>
-                      {entry.queuedAt && entry.queuedAt.length > 0 && <WaitTimer since={entry.queuedAt} />}
-                    </span>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                      <div className="avatar-queue__row">
+                        <span className="avatar-queue__dot">{isMe ? '🟢' : isNext ? '🟢' : isOnDeck ? '🟡' : '⚪'}</span>
+                        <span
+                          className="avatar-queue__name avatar-queue__name-link"
+                          onClick={() => setSelectedProfilePlayerId(entry.playerId)}
+                        >
+                          {entry.playerName}{isMe ? ' (You)' : ''}
+                          {entry.streak >= 2 && <span className="avatar-queue__streak">🔥</span>}
+                          {entry.streak <= -2 && <span className="avatar-queue__streak">❄️</span>}
+                        </span>
+                        {entry.starRating && (
+                          <span className="avatar-queue__stars">{'★'.repeat(entry.starRating)}{'☆'.repeat(5 - entry.starRating)}</span>
+                        )}
+                        <span className="avatar-queue__record">{entry.wins}-{entry.losses}</span>
+                        <span className={`avatar-queue__wait${isNext ? ' avatar-queue__wait--now' : isOnDeck ? ' avatar-queue__wait--ondeck' : ''}`}>
+                          {entry.queuedAt && entry.queuedAt.length > 0 && <WaitTimer since={entry.queuedAt} />}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </>
         )}
       </section>
 

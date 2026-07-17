@@ -19,6 +19,7 @@ import {
   getFixedPairByPlayerId,
   getPlayerRatingsBySession,
   getQueueEntryByPlayerId,
+  getCompletedMatchCountBySession,
   MatchRow,
   QueueEntryRow,
 } from '../repository';
@@ -153,6 +154,11 @@ export function startMatch(sessionId: string, courtNumber: number): Match {
       const team1Expanded = expandTeamPlayerIds(result.team1, candidatePool);
       const team2Expanded = expandTeamPlayerIds(result.team2, candidatePool);
       playerIds = [...team1Expanded, ...team2Expanded];
+    } else if (matchingMode === 'comeback') {
+      candidatePool = buildCandidatePool(sessionId, queue, gameMode, matchingMode);
+      const pairingInput = buildComebackPairingInput(sessionId, queue, candidatePool, courtNumber);
+      const result = selectPairing(pairingInput);
+      playerIds = [...expandTeamPlayerIds(result.team1, candidatePool), ...expandTeamPlayerIds(result.team2, candidatePool)];
     } else {
       // Smart modes: casual, balanced, competitive — all use selectPairing with different config
       const pairingInput = buildPairingInput(sessionId, queue, matchingMode);
@@ -373,8 +379,10 @@ function buildCandidatePool(
   const ratings = getSessionRatings(sessionId);
   const ratingRows = getPlayerRatingsBySession(sessionId);
   const matchesPlayedMap = new Map<string, number>();
+  const lastResultMap = new Map<string, string | null>();
   for (const row of ratingRows) {
     matchesPlayedMap.set(row.player_id, row.matches_played);
+    lastResultMap.set(row.player_id, row.last_match_result);
   }
 
   let maxPoolSize: number;
@@ -418,6 +426,7 @@ function buildCandidatePool(
           pairId: entry.pair_id,
           pairedPlayerIds: [pair.player1_id, pair.player2_id],
           matchesPlayed: Math.round((p1Matches + p2Matches) / 2),
+          lastResult: ((lastResultMap.get(pair.player1_id) === 'loss' || lastResultMap.get(pair.player2_id) === 'loss') ? 'loss' : lastResultMap.get(pair.player1_id) ?? lastResultMap.get(pair.player2_id) ?? null) as 'win' | 'loss' | null,
         };
       }
     }
@@ -431,6 +440,7 @@ function buildCandidatePool(
       pairId: null,
       pairedPlayerIds: null,
       matchesPlayed: matchesPlayedMap.get(entry.player_id) ?? 0,
+      lastResult: (lastResultMap.get(entry.player_id) ?? null) as 'win' | 'loss' | null,
     };
   });
 }
@@ -547,6 +557,101 @@ function selectSinglesPlayers(
 }
 
 /**
+ * Builds a PairingInput for comeback mode by filtering the candidate pool by bracket
+ * (winners/losers) and then using the same casual pairing algorithm.
+ *
+ * Court number alternates which bracket gets served:
+ *   even courts → winners bracket, odd courts → losers bracket
+ *
+ * Falls back gracefully:
+ *   1. Primary bracket (if >= 4 candidates)
+ *   2. Opposite bracket (if >= 4 candidates)
+ *   3. Full pool with casual pairing (not enough in either bracket)
+ */
+function buildComebackPairingInput(
+  sessionId: string,
+  queue: QueueEntryRow[],
+  candidatePool: PairingCandidate[],
+  courtNumber: number,
+): PairingInput {
+  const winners = candidatePool.filter(c => c.lastResult === 'win');
+  const losers = candidatePool.filter(c => c.lastResult === 'loss');
+  const neutrals = candidatePool.filter(c => c.lastResult === null);
+
+  const hasResults = candidatePool.some(c => c.lastResult !== null);
+
+  let bracketPool: PairingCandidate[];
+  if (!hasResults) {
+    bracketPool = candidatePool;
+  } else {
+    // Prioritize neutrals — queue them until exhausted
+    if (neutrals.length >= 4) {
+      bracketPool = neutrals;
+    } else if (neutrals.length > 0) {
+      // 1-3 neutrals: pull longest-waiting players from BOTH brackets to fill up to 4
+      const allBracketed = [...winners, ...losers].sort((a, b) => a.queuePosition - b.queuePosition);
+      const needed = 4 - neutrals.length;
+      const fillers = allBracketed.slice(0, needed);
+      bracketPool = [...neutrals, ...fillers];
+    } else {
+      const matchNumber = getCompletedMatchCountBySession(sessionId);
+      const winnersFirst = matchNumber % 2 === 0;
+      const primary = winnersFirst ? winners : losers;
+      const secondary = winnersFirst ? losers : winners;
+
+      if (primary.length >= 4) {
+        bracketPool = primary;
+      } else if (secondary.length >= 4) {
+        bracketPool = secondary;
+      } else {
+        bracketPool = candidatePool;
+      }
+    }
+  }
+
+  // Build history maps from pairing_history table
+  const pairingHistoryRows = getPairingHistoryBySession(sessionId);
+  const teammateHistory = new Map<string, Map<string, number>>();
+  const opponentHistory = new Map<string, Map<string, number>>();
+
+  for (const row of pairingHistoryRows) {
+    if (row.times_as_teammates > 0) {
+      if (!teammateHistory.has(row.player1_id)) teammateHistory.set(row.player1_id, new Map());
+      teammateHistory.get(row.player1_id)!.set(row.player2_id, row.times_as_teammates);
+      if (!teammateHistory.has(row.player2_id)) teammateHistory.set(row.player2_id, new Map());
+      teammateHistory.get(row.player2_id)!.set(row.player1_id, row.times_as_teammates);
+    }
+    if (row.times_as_opponents > 0) {
+      if (!opponentHistory.has(row.player1_id)) opponentHistory.set(row.player1_id, new Map());
+      opponentHistory.get(row.player1_id)!.set(row.player2_id, row.times_as_opponents);
+      if (!opponentHistory.has(row.player2_id)) opponentHistory.set(row.player2_id, new Map());
+      opponentHistory.get(row.player2_id)!.set(row.player1_id, row.times_as_opponents);
+    }
+  }
+
+  const matchResults = getMatchResultsBySession(sessionId);
+  const matchConfigHistory = new Set<string>();
+  for (const result of matchResults) {
+    const winnerIds: string[] = JSON.parse(result.winner_player_ids);
+    const loserIds: string[] = JSON.parse(result.loser_player_ids);
+    if (winnerIds.length >= 2 && loserIds.length >= 2) {
+      const team1 = [winnerIds[0], winnerIds[1]] as [string, string];
+      const team2 = [loserIds[0], loserIds[1]] as [string, string];
+      matchConfigHistory.add(serializeMatchConfig(team1, team2));
+    }
+  }
+
+  return {
+    candidatePool: bracketPool,
+    teammateHistory,
+    opponentHistory,
+    matchConfigHistory,
+    sessionId,
+    pairingMode: 'casual',
+  };
+}
+
+/**
  * Builds the full PairingInput for the smart pairing algorithm.
  * Includes candidate pool, teammate history, opponent history, and match config history.
  */
@@ -612,7 +717,7 @@ function buildPairingInput(sessionId: string, queue: QueueEntryRow[], matchingMo
     opponentHistory,
     matchConfigHistory,
     sessionId,
-    pairingMode: 'smart',
+    pairingMode: 'casual',
   };
 }
 
@@ -828,6 +933,11 @@ export function previewNextMatch(sessionId: string): string[] {
       const team1Expanded = expandTeamPlayerIds(result.team1, candidatePool);
       const team2Expanded = expandTeamPlayerIds(result.team2, candidatePool);
       return [...team1Expanded, ...team2Expanded];
+    } else if (matchingMode === 'comeback') {
+      const candidatePool = buildCandidatePool(sessionId, queue, gameMode, matchingMode);
+      const pairingInput = buildComebackPairingInput(sessionId, queue, candidatePool, 0);
+      const result = selectPairing(pairingInput);
+      return [...expandTeamPlayerIds(result.team1, candidatePool), ...expandTeamPlayerIds(result.team2, candidatePool)];
     } else {
       const pairingInput = buildPairingInput(sessionId, queue, matchingMode);
       pairingInput.pairingMode = matchingMode as 'casual' | 'balanced' | 'competitive';

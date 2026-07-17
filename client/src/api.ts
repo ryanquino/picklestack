@@ -345,7 +345,7 @@ export function getPlayerStatus(sessionId: string, playerId: string): Promise<{ 
 }
 
 /** Get all players in a session with their status */
-export function getAllPlayers(sessionId: string): Promise<Array<{ id: string; name: string; gender: string | null; status: 'bench' | 'queue' | 'playing' }>> {
+export function getAllPlayers(sessionId: string): Promise<Array<{ id: string; name: string; gender: string | null; starRating: number; status: 'bench' | 'queue' | 'playing' }>> {
   return request(`/sessions/${sessionId}/all-players`);
 }
 

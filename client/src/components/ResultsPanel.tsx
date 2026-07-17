@@ -71,14 +71,14 @@ export default function ResultsPanel({ sessionId, onChanged }: ResultsPanelProps
       ) : results.length === 0 ? (
         <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-sm)' }}>No completed matches yet.</p>
       ) : (
-        <div className="results-panel__list">
+        <div className="results-panel__list" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
           {results.map((r) => {
             const team1Names = r.playerNames.slice(0, 2);
             const team2Names = r.playerNames.slice(2, 4);
             const winnerIsTeam1 = r.winningTeam === 'team1';
             return (
               <div key={r.matchId} className="results-panel__item">
-                <div className="results-panel__court">C{r.courtNumber}</div>
+                <div className="results-panel__court">#{r.matchIndex}</div>
                 <div className="results-panel__teams">
                   <div className={`results-panel__team${winnerIsTeam1 ? ' results-panel__team--winner' : ''}`}>
                     <span className="results-panel__names">{team1Names.join(' & ')}</span>
@@ -212,7 +212,7 @@ function EditScoreModal({ sessionId, result, onClose, onSaved }: EditScoreModalP
       >
         <div className="match-dialog__header">
           <h2 id="edit-score-title" className="match-dialog__title">
-            Edit Result · Court {result.courtNumber}
+            Edit Result · Match #{result.matchIndex}
           </h2>
         </div>
 
