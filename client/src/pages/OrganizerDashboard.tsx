@@ -459,6 +459,7 @@ function OrganizerDashboard() {
           courtName={state.session.courtName}
           dateTime={new Date().toLocaleString()}
           pairingMode={pairingMode}
+          isMLP={state.session.gameMode === 'mlp'}
           onTogglePairingMode={async () => {
             const newMode: PairingMode = pairingMode === 'smart' ? 'queue' : 'smart';
             try {

@@ -11,6 +11,7 @@ interface SessionHeaderProps {
   courtName?: string;
   dateTime?: string;
   pairingMode?: PairingMode;
+  isMLP?: boolean;
   onTogglePairingMode?: () => void;
   onShare?: () => void;
   onOpenSettings?: () => void;
@@ -23,6 +24,7 @@ function SessionHeader({
   courtName,
   dateTime = new Date().toLocaleString(),
   pairingMode = 'queue',
+  isMLP = false,
   onTogglePairingMode,
   onShare,
   onOpenSettings,
@@ -60,16 +62,18 @@ function SessionHeader({
           <span className="session-header__btn-label">Share</span>
         </button>
 
-        <button
-          type="button"
-          className="session-header__btn session-header__btn--settings"
-          onClick={onOpenSettings}
-          aria-label="Session Settings"
-          title="Session Settings"
-        >
-          <span className="session-header__btn-icon" aria-hidden="true">⚙️</span>
-          <span className="session-header__btn-label">Settings</span>
-        </button>
+        {!isMLP && (
+          <button
+            type="button"
+            className="session-header__btn session-header__btn--settings"
+            onClick={onOpenSettings}
+            aria-label="Session Settings"
+            title="Session Settings"
+          >
+            <span className="session-header__btn-icon" aria-hidden="true">⚙️</span>
+            <span className="session-header__btn-label">Settings</span>
+          </button>
+        )}
 
         <button
           type="button"

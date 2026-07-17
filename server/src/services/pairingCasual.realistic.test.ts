@@ -130,11 +130,11 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
     // Players who never played
     const neverPlayed = stats.filter(s => s.matchesPlayed === 0).length;
 
-    // H2H analysis - check first 10 players
+    // H2H analysis - check all players
     let maxH2H = 0;
     let totalH2H = 0;
     let h2hChecks = 0;
-    for (let i = 0; i < Math.min(10, playerIds.length); i++) {
+    for (let i = 0; i < playerIds.length; i++) {
       const profileRes = await request(app).get(`/api/sessions/${sessionId}/players/${playerIds[i]}/profile`);
       if (profileRes.status === 200 && profileRes.body.headToHead) {
         const headToHead: Array<{ encounters: number }> = profileRes.body.headToHead;
@@ -203,7 +203,7 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
 
     // Assertions
     expect(completedMatches).toBeGreaterThanOrEqual(70);
-    expect(maxH2H).toBeLessThanOrEqual(3); // casual allows some repeats to prioritize wait time
+    expect(maxH2H).toBeLessThanOrEqual(2); // casual allows some repeats to prioritize wait time
     expect(neverPlayed).toBeLessThanOrEqual(2); // almost everyone should play
     expect(deviation).toBeLessThanOrEqual(6); // reasonable spread given staggered entry
   });
@@ -330,7 +330,7 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
     let maxH2H = 0;
     let totalH2H = 0;
     let h2hChecks = 0;
-    for (let i = 0; i < Math.min(10, playerIds.length); i++) {
+    for (let i = 0; i < playerIds.length; i++) {
       const profileRes = await request(app).get(`/api/sessions/${sessionId}/players/${playerIds[i]}/profile`);
       if (profileRes.status === 200 && profileRes.body.headToHead) {
         const headToHead: Array<{ encounters: number }> = profileRes.body.headToHead;
@@ -454,7 +454,7 @@ describe('Casual mode: realistic 50-player open play simulation', () => {
     let maxH2H = 0;
     let totalH2H = 0;
     let h2hChecks = 0;
-    for (let i = 0; i < Math.min(10, playerIds.length); i++) {
+    for (let i = 0; i < playerIds.length; i++) {
       const profileRes = await request(app).get(`/api/sessions/${sessionId}/players/${playerIds[i]}/profile`);
       if (profileRes.status === 200 && profileRes.body.headToHead) {
         for (const h of profileRes.body.headToHead) {

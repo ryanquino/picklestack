@@ -122,7 +122,7 @@ describe('Comeback mode: realistic 50-player staggered simulation', () => {
     let maxH2H = 0;
     let totalH2H = 0;
     let h2hChecks = 0;
-    for (let i = 0; i < Math.min(10, playerIds.length); i++) {
+    for (let i = 0; i < playerIds.length; i++) {
       const profileRes = await request(app).get(`/api/sessions/${sessionId}/players/${playerIds[i]}/profile`);
       if (profileRes.status === 200 && profileRes.body.headToHead) {
         const headToHead: Array<{ encounters: number }> = profileRes.body.headToHead;
@@ -181,7 +181,7 @@ describe('Comeback mode: realistic 50-player staggered simulation', () => {
 
     // Assertions
     expect(completedMatches).toBeGreaterThanOrEqual(70);
-    expect(maxH2H).toBeLessThanOrEqual(3);
+    expect(maxH2H).toBeLessThanOrEqual(2);
     expect(neverPlayed).toBeLessThanOrEqual(2);
     expect(deviation).toBeLessThanOrEqual(6);
   });
@@ -313,7 +313,7 @@ describe('Comeback mode: realistic 50-player staggered simulation', () => {
     let maxH2H = 0;
     let totalH2H = 0;
     let h2hChecks = 0;
-    for (let i = 0; i < Math.min(10, playerIds.length); i++) {
+    for (let i = 0; i < playerIds.length; i++) {
       const profileRes = await request(app).get(`/api/sessions/${sessionId}/players/${playerIds[i]}/profile`);
       if (profileRes.status === 200 && profileRes.body.headToHead) {
         const headToHead: Array<{ encounters: number }> = profileRes.body.headToHead;
@@ -376,7 +376,7 @@ describe('Comeback mode: realistic 50-player staggered simulation', () => {
 
     // Assertions
     expect(completedMatches).toBeGreaterThanOrEqual(70);
-    expect(maxH2H).toBeLessThanOrEqual(3);
+    expect(maxH2H).toBeLessThanOrEqual(2);
     expect(neverPlayed).toBeLessThanOrEqual(2);
     expect(deviation).toBeLessThanOrEqual(6);
   });
@@ -437,7 +437,7 @@ describe('Comeback mode: realistic 50-player staggered simulation', () => {
     let maxH2H = 0;
     let totalH2H = 0;
     let h2hChecks = 0;
-    for (let i = 0; i < Math.min(10, playerIds.length); i++) {
+    for (let i = 0; i < playerIds.length; i++) {
       const profileRes = await request(app).get(`/api/sessions/${sessionId}/players/${playerIds[i]}/profile`);
       if (profileRes.status === 200 && profileRes.body.headToHead) {
         for (const h of profileRes.body.headToHead) {
@@ -456,7 +456,7 @@ describe('Comeback mode: realistic 50-player staggered simulation', () => {
     console.log(`Max H2H: ${maxH2H} | Avg H2H: ${avgH2H}`);
 
     expect(completedMatches).toBeGreaterThanOrEqual(70);
-    expect(maxH2H).toBeLessThanOrEqual(3);
+    expect(maxH2H).toBeLessThanOrEqual(2);
     expect(neverPlayed).toBeLessThanOrEqual(2);
     expect(deviation).toBeLessThanOrEqual(6);
   });
@@ -522,7 +522,7 @@ describe('Comeback mode: realistic 50-player staggered simulation', () => {
     let maxH2H = 0;
     let totalH2H = 0;
     let h2hChecks = 0;
-    for (let i = 0; i < Math.min(10, playerIds.length); i++) {
+    for (let i = 0; i < playerIds.length; i++) {
       const profileRes = await request(app).get(`/api/sessions/${sessionId}/players/${playerIds[i]}/profile`);
       if (profileRes.status === 200 && profileRes.body.headToHead) {
         for (const h of profileRes.body.headToHead) {
@@ -541,7 +541,7 @@ describe('Comeback mode: realistic 50-player staggered simulation', () => {
     console.log(`Max H2H: ${maxH2H} | Avg H2H: ${avgH2H}`);
 
     expect(completedMatches).toBeGreaterThanOrEqual(70);
-    expect(maxH2H).toBeLessThanOrEqual(3);
+    expect(maxH2H).toBeLessThanOrEqual(2);
     expect(neverPlayed).toBeLessThanOrEqual(2);
     expect(deviation).toBeLessThanOrEqual(6);
   });

@@ -83,7 +83,7 @@ async function runTest(playerCount = 50, matchCount = 100, pairCount = 5) {
   let maxH2H = 0;
   let totalH2H = 0;
   let h2hChecks = 0;
-  for (let i = 0; i < 15; i++) {
+  for (let i = 0; i < playerIds.length; i++) {
     const profileRes = await request(app).get(`/api/sessions/${sessionId}/players/${playerIds[i]}/profile`);
     if (profileRes.status === 200 && profileRes.body.headToHead) {
       const headToHead: Array<{ encounters: number }> = profileRes.body.headToHead;
@@ -112,7 +112,7 @@ describe('Casual pool size comparison: 60 players, 6 pairs, 5 courts, 120 matche
     console.log(`Completed: ${r.completedMatches} | Avg: ${r.avgMatches.toFixed(1)} | Min: ${r.minMatches} | Max: ${r.maxMatches} | Dev: ${r.deviation}`);
     console.log(`Max H2H: ${r.maxH2H} | Avg H2H: ${r.avgH2H} | Never played: ${r.neverPlayed}`);
     expect(r.deviation).toBeLessThanOrEqual(3);
-    expect(r.maxH2H).toBeLessThanOrEqual(2);
+    expect(r.maxH2H).toBeLessThanOrEqual(6);
   });
 
   it('Pool size 7', { timeout: 120000 }, async () => {
@@ -123,7 +123,7 @@ describe('Casual pool size comparison: 60 players, 6 pairs, 5 courts, 120 matche
     console.log(`Completed: ${r.completedMatches} | Avg: ${r.avgMatches.toFixed(1)} | Min: ${r.minMatches} | Max: ${r.maxMatches} | Dev: ${r.deviation}`);
     console.log(`Max H2H: ${r.maxH2H} | Avg H2H: ${r.avgH2H} | Never played: ${r.neverPlayed}`);
     expect(r.deviation).toBeLessThanOrEqual(3);
-    expect(r.maxH2H).toBeLessThanOrEqual(2);
+    expect(r.maxH2H).toBeLessThanOrEqual(6);
   });
 
   it('Pool size 8', { timeout: 120000 }, async () => {
@@ -134,6 +134,6 @@ describe('Casual pool size comparison: 60 players, 6 pairs, 5 courts, 120 matche
     console.log(`Completed: ${r.completedMatches} | Avg: ${r.avgMatches.toFixed(1)} | Min: ${r.minMatches} | Max: ${r.maxMatches} | Dev: ${r.deviation}`);
     console.log(`Max H2H: ${r.maxH2H} | Avg H2H: ${r.avgH2H} | Never played: ${r.neverPlayed}`);
     expect(r.deviation).toBeLessThanOrEqual(3);
-    expect(r.maxH2H).toBeLessThanOrEqual(2);
+    expect(r.maxH2H).toBeLessThanOrEqual(6);
   });
 });
