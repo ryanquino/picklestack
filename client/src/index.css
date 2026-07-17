@@ -164,7 +164,7 @@
 }
 
 [data-theme="light"] .navbar {
-  background: var(--glass-bg);
+  background: #fefefe;
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border-bottom-color: var(--glass-border);
@@ -3969,7 +3969,7 @@ textarea {
   padding: var(--space-md) var(--space-md);
   margin-bottom: var(--space-lg);
   border-bottom: 1px solid var(--glass-border);
-  background: transparent;
+  background: #fefefe;
 }
 
 .navbar__brand {
@@ -3985,8 +3985,8 @@ textarea {
 }
 
 .navbar__logo {
-  height: 56px;
-  min-height: 56px;
+  height: 96px;
+  min-height: 96px;
   width: auto;
   object-fit: contain;
 }
@@ -6094,6 +6094,23 @@ select.create-session__input {
 
   .court-card {
     min-height: 240px;
+  }
+}
+
+@media (max-width: 403px) {
+  .navbar {
+    padding: var(--space-sm) var(--space-sm);
+    margin-bottom: var(--space-md);
+  }
+
+  .navbar__logo {
+    height: 56px;
+    min-height: 56px;
+  }
+
+  .navbar__link {
+    font-size: 0.8rem;
+    padding: var(--space-xs) var(--space-sm);
   }
 }
 

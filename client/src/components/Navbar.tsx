@@ -8,7 +8,7 @@ function Navbar() {
   return (
     <nav className="navbar" aria-label="Main navigation">
       <Link to="/" className="navbar__brand">
-        <img src="/logo-light.png" alt="Pickld logo" className="navbar__logo" />
+        <img src="/logo.png" alt="PaddleFlux logo" className="navbar__logo" />
       </Link>
 
       <div className="navbar__links">
