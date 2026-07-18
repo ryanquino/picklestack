@@ -266,6 +266,13 @@ export function getDb(): Database.Database {
     db.exec("ALTER TABLE player_ratings ADD COLUMN last_match_result TEXT DEFAULT NULL");
   }
 
+  // Migration: Add assigned_bracket column to matches for comeback mode labels
+  const matchColumnsInfo = db.pragma('table_info(matches)') as Array<{ name: string }>;
+  const hasAssignedBracket = matchColumnsInfo.some((col) => col.name === 'assigned_bracket');
+  if (!hasAssignedBracket) {
+    db.exec("ALTER TABLE matches ADD COLUMN assigned_bracket TEXT DEFAULT NULL");
+  }
+
   return db;
 }
 

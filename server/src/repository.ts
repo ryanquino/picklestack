@@ -54,6 +54,7 @@ export interface MatchRow {
   status: string;
   started_at: string;
   completed_at: string | null;
+  assigned_bracket: string | null; // 'winners' | 'losers' | null — comeback mode bracket assignment
 }
 
 // ============================================================
@@ -227,8 +228,8 @@ export function deleteFixedPairsBySession(sessionId: string): void {
 export function createMatch(match: MatchRow): MatchRow {
   const db = getDb();
   db.prepare(`
-    INSERT INTO matches (id, session_id, court_number, player_ids, status, started_at, completed_at)
-    VALUES (@id, @session_id, @court_number, @player_ids, @status, @started_at, @completed_at)
+    INSERT INTO matches (id, session_id, court_number, player_ids, status, started_at, completed_at, assigned_bracket)
+    VALUES (@id, @session_id, @court_number, @player_ids, @status, @started_at, @completed_at, @assigned_bracket)
   `).run(match);
   return match;
 }

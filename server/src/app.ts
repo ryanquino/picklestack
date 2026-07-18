@@ -341,26 +341,10 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response, next: NextFunc
       let team1Bracket: string | null = null;
       let team2Bracket: string | null = null;
 
-      // For comeback mode: determine bracket labels from player results
-      // Works for all doubles variants: regular (4 IDs), paired (6, 8 IDs), mixed
-      if (playerIds.length >= 4 && sessionMatchingMode === 'comeback') {
-        const half = Math.floor(playerIds.length / 2);
-        const team1PlayerIds = playerIds.slice(0, half);
-        const team2PlayerIds = playerIds.slice(half);
-        const team1Results = team1PlayerIds.map(id => lastResultMap.get(id));
-        const team2Results = team2PlayerIds.map(id => lastResultMap.get(id));
-        const allResults = [...team1Results, ...team2Results];
-        const hasAnyResult = allResults.some(r => r === 'win' || r === 'loss');
-
-        if (!hasAnyResult) {
-          team1Bracket = 'neutral';
-          team2Bracket = 'neutral';
-        } else {
-          const team1AllWinners = team1Results.every(r => r === 'win');
-          const team2AllWinners = team2Results.every(r => r === 'win');
-          team1Bracket = team1AllWinners ? 'winners' : 'losers';
-          team2Bracket = team2AllWinners ? 'winners' : 'losers';
-        }
+      // For comeback mode: use stored bracket assignment from pairing
+      if (playerIds.length >= 4 && sessionMatchingMode === 'comeback' && match.assigned_bracket) {
+        team1Bracket = match.assigned_bracket;
+        team2Bracket = match.assigned_bracket;
       }
 
       return {

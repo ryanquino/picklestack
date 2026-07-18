@@ -5,16 +5,21 @@ import { getDb } from '../db';
 
 beforeEach(() => {
   const db = getDb();
+  db.pragma('foreign_keys = OFF');
   db.exec('DELETE FROM player_achievements');
   db.exec('DELETE FROM pairing_history');
   db.exec('DELETE FROM player_ratings');
   db.exec('DELETE FROM match_results');
   db.exec('DELETE FROM match_quality_scores');
+  db.exec('DELETE FROM mlp_match_results');
+  db.exec('DELETE FROM tournament_brackets');
+  db.exec('DELETE FROM tournament_teams');
   db.exec('DELETE FROM queue_entries');
   db.exec('DELETE FROM fixed_pairs');
   db.exec('DELETE FROM matches');
   db.exec('DELETE FROM players');
   db.exec('DELETE FROM sessions');
+  db.pragma('foreign_keys = ON');
 });
 
 describe('Comeback mode: realistic 50-player staggered simulation', () => {
