@@ -1696,13 +1696,24 @@ app.get('/api/sessions/:sessionId/tournament', (req: Request, res: Response, nex
       player4Name: playerMap.get(t.player4Id) ?? 'Unknown',
     }));
 
-    // Enrich brackets with team names
+    // Enrich brackets with team names and court numbers
     const teamMap = new Map(teams.map((t: any) => [t.id, t.name]));
+    const bracketMatchIds = brackets.filter((b: any) => b.matchId).map((b: any) => b.matchId);
+    const courtByMatch = new Map<string, number>();
+    if (bracketMatchIds.length > 0) {
+      const db = getDb();
+      const placeholders = bracketMatchIds.map(() => '?').join(',');
+      const matchRows = db.prepare(`SELECT id, court_number FROM matches WHERE id IN (${placeholders})`).all(...bracketMatchIds) as Array<{ id: string; court_number: number }>;
+      for (const row of matchRows) {
+        courtByMatch.set(row.id, row.court_number);
+      }
+    }
     const enrichedBrackets = brackets.map((b: any) => ({
       ...b,
       teamAName: b.teamAId ? teamMap.get(b.teamAId) ?? null : null,
       teamBName: b.teamBId ? teamMap.get(b.teamBId) ?? null : null,
       winnerTeamName: b.winnerTeamId ? teamMap.get(b.winnerTeamId) ?? null : null,
+      courtNumber: b.matchId ? (courtByMatch.get(b.matchId) ?? null) : null,
     }));
 
     // Get match results

@@ -155,8 +155,14 @@ function CourtCard({
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(courtDisplayName);
+  const [selectedWinner, setSelectedWinner] = useState<'team1' | 'team2' | null>(null);
   const status = getCourtStatus(court, match, isNextUp);
   const canStartMatch = !match && queueLength >= 4;
+
+  // Reset winner selection when the match on this court changes
+  useEffect(() => {
+    setSelectedWinner(null);
+  }, [match?.id]);
 
   async function handleStartMatch() {
     onCancelCountdown(court.courtNumber);
@@ -254,11 +260,21 @@ function CourtCard({
           {/* Teams section */}
           <div className="court-card__teams">
             {/* Team 1 */}
-            <div className="court-card__team">
+            <div
+              className={`court-card__team${selectedWinner === 'team1' ? ' court-card__team--selected' : ''}`}
+              onClick={() => handleToggleWinner('team1')}
+              role="button"
+              tabIndex={0}
+              aria-label={`Select Team 1 as winner: ${team1.map(p => p.name).join(' and ')}`}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggleWinner('team1'); } }}
+            >
               {match.team1Bracket && (
                 <span className={`court-card__bracket-label court-card__bracket-label--${match.team1Bracket}`}>
                   {match.team1Bracket === 'winners' ? '🏆 Winners' : match.team1Bracket === 'losers' ? '💪 Losers' : '⚖️ Neutral'}
                 </span>
+              )}
+              {selectedWinner === 'team1' && (
+                <span className="court-card__winner-badge">Winner</span>
               )}
               {team1.map((player) => {
                 const stats = getStatsForPlayer(player.id, playerStats);
@@ -317,11 +333,21 @@ function CourtCard({
             <div className="court-card__vs">VS</div>
 
             {/* Team 2 */}
-            <div className="court-card__team">
+            <div
+              className={`court-card__team${selectedWinner === 'team2' ? ' court-card__team--selected' : ''}`}
+              onClick={() => handleToggleWinner('team2')}
+              role="button"
+              tabIndex={0}
+              aria-label={`Select Team 2 as winner: ${team2.map(p => p.name).join(' and ')}`}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggleWinner('team2'); } }}
+            >
               {match.team2Bracket && (
                 <span className={`court-card__bracket-label court-card__bracket-label--${match.team2Bracket}`}>
                   {match.team2Bracket === 'winners' ? '🏆 Winners' : match.team2Bracket === 'losers' ? '💪 Losers' : '⚖️ Neutral'}
                 </span>
+              )}
+              {selectedWinner === 'team2' && (
+                <span className="court-card__winner-badge">Winner</span>
               )}
               {team2.map((player) => {
                 const stats = getStatsForPlayer(player.id, playerStats);
@@ -572,6 +598,10 @@ function CourtGrid({
     setDialogCourtNumber(courtNumber);
   }
 
+  function handleToggleWinner(team: 'team1' | 'team2') {
+    setSelectedWinner((prev) => (prev === team ? null : team));
+  }
+
   function handleCloseDialog() {
     setDialogCourtNumber(null);
   }
@@ -650,6 +680,7 @@ function CourtGrid({
           courtNumber={dialogCourtNumber}
           players={dialogMatch.players}
           matchStartedAt={dialogMatch.startedAt}
+          initialWinner={selectedWinner}
           onClose={handleCloseDialog}
           onComplete={handleMatchCompleted}
         />

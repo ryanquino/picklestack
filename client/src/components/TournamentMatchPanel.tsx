@@ -213,7 +213,7 @@ export default function TournamentMatchPanel({ sessionId, activeBrackets, teams,
                 {SUB_MATCHES.map(sub => {
                   const winner = s[sub.key];
                   const isDreambreaker = sub.key === 'dreambreaker';
-                  const disabled = isDreambreaker ? !isDreambreakerReady : !!winner;
+                  const disabled = isDreambreaker ? !isDreambreakerReady : false;
                   const subScore = getScore(bracket.id, sub.key);
 
                   return (

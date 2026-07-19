@@ -271,6 +271,7 @@ export interface TournamentBracket {
   matchId: string | null;
   isBye: boolean;
   createdAt: string;
+  courtNumber?: number | null;
 }
 
 /** Result of a single sub-game */

@@ -567,20 +567,18 @@ export default function TournamentDashboard({ sessionId, courtCount, onMatchStar
         <div style={{ marginBottom: '1.5rem' }}>
           <h3 className="section-title">Start Next Match</h3>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {Array.from({ length: courtCount }, (_, i) => i + 1).map(courtNum => {
-              const isActive = activeBrackets.some(() => false);
-              return (
+            {Array.from({ length: courtCount }, (_, i) => i + 1)
+              .filter(courtNum => !activeBrackets.some(b => b.courtNumber === courtNum))
+              .map(courtNum => (
                 <button
                   key={courtNum}
                   type="button"
                   onClick={() => handleStartMatch(courtNum)}
-                  disabled={isActive}
                   className="btn btn--outline-success"
                 >
                   Court {courtNum}
                 </button>
-              );
-            })}
+              ))}
           </div>
         </div>
       )}

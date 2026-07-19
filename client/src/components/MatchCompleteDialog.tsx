@@ -12,6 +12,7 @@ interface MatchCompleteDialogProps {
   courtNumber: number;
   players: Player[];
   matchStartedAt?: string;
+  initialWinner?: 'team1' | 'team2' | null;
   onClose: () => void;
   onComplete: () => void;
 }
@@ -28,12 +29,13 @@ function MatchCompleteDialog({
   courtNumber,
   players,
   matchStartedAt,
+  initialWinner,
   onClose,
   onComplete,
 }: MatchCompleteDialogProps) {
   const [team1Score, setTeam1Score] = useState<string>('');
   const [team2Score, setTeam2Score] = useState<string>('');
-  const [selectedWinner, setSelectedWinner] = useState<'team1' | 'team2' | null>(null);
+  const [selectedWinner, setSelectedWinner] = useState<'team1' | 'team2' | null>(initialWinner ?? null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);

@@ -583,13 +583,14 @@ function selectSinglesPlayers(
  * Builds a PairingInput for comeback mode by filtering the candidate pool by bracket
  * (winners/losers) and then using the same casual pairing algorithm.
  *
- * Court number alternates which bracket gets served:
- *   even courts → winners bracket, odd courts → losers bracket
+ * Bracket assignment is determined by alternating tracker, not court number.
  *
- * Falls back gracefully:
- *   1. Primary bracket (if >= 4 candidates)
- *   2. Opposite bracket (if >= 4 candidates)
- *   3. Full pool with casual pairing (not enough in either bracket)
+ * Pool selection:
+ *   1. No results yet → full pool (neutral)
+ *   2. 4+ neutrals → neutral pool
+ *   3. 1-3 neutrals → fill from PRIMARY bracket only (never mix brackets)
+ *   4. 0 neutrals, primary >= 4 → primary bracket
+ *   5. 0 neutrals, primary < 4 → throw ValidationError (strict alternation enforced)
  */
 interface ComebackPairingResult {
   pairingInput: PairingInput;

@@ -2086,6 +2086,35 @@ h1, h2, h3, h4, h5, h6 {
   position: relative;
   min-width: 0;
   overflow: hidden;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  padding: var(--space-sm);
+  border: 2px solid transparent;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.court-card__team:hover {
+  background: rgba(var(--color-text-rgb, 0, 0, 0), 0.03);
+}
+
+.court-card__team--selected {
+  border-color: var(--color-success);
+  background: rgba(132, 195, 65, 0.08);
+}
+
+.court-card__winner-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  padding: 2px 8px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #fff;
+  background: var(--color-success);
+  border-radius: var(--radius-sm);
+  line-height: 1.4;
 }
 
 .court-card__bracket-label {
