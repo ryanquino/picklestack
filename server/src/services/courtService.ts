@@ -19,6 +19,8 @@ import {
   getFixedPairByPlayerId,
   getPlayerRatingsBySession,
   getQueueEntryByPlayerId,
+  getClubRaidMatchesBySession,
+  updateClubRaidMatch,
   MatchRow,
   QueueEntryRow,
 } from '../repository';
@@ -28,6 +30,7 @@ import { calculateCombinedRating } from './fixedPairService';
 import { recordMatchResult } from './matchResultService';
 import { evaluateAchievements } from './achievementsService';
 import { updateMatchPlayers } from '../repository';
+import { selectPlayersFromClub } from './clubRaidService';
 
 type GameMode = 'doubles' | 'singles' | 'mlp';
 
@@ -159,6 +162,7 @@ export function startMatch(sessionId: string, courtNumber: number): Match {
   let playerIds: string[];
   let candidatePool: PairingCandidate[] | undefined;
   let assignedBracket: string | null = null;
+  let pendingClubRaidMatchId: string | null = null;
 
   if (gameMode === 'singles') {
     playerIds = selectSinglesPlayers(sessionId, queue, session.matching_mode);
@@ -180,6 +184,26 @@ export function startMatch(sessionId: string, courtNumber: number): Match {
       assignedBracket = comebackResult.assignedBracket;
       const result = selectPairing(comebackResult.pairingInput);
       playerIds = [...expandTeamPlayerIds(result.team1, candidatePool), ...expandTeamPlayerIds(result.team2, candidatePool)];
+    } else if (matchingMode === 'club_raid') {
+      // Club Raid — pick next pending scheduled match and use pre-assigned players
+      const scheduleMatches = getClubRaidMatchesBySession(sessionId);
+      const nextMatch = scheduleMatches.find(m => m.status === 'pending');
+      if (!nextMatch) {
+        throw new ValidationError('No pending Club Raid matches in the schedule', ['matchingMode']);
+      }
+
+      // Use pre-assigned players from schedule generation
+      const teamA = [nextMatch.club_a_player_1, nextMatch.club_a_player_2].filter(Boolean) as string[];
+      const teamB = [nextMatch.club_b_player_1, nextMatch.club_b_player_2].filter(Boolean) as string[];
+
+      if (teamA.length < 2 || teamB.length < 2) {
+        throw new ValidationError('This match is missing player assignments. Regenerate the schedule.', ['matchingMode']);
+      }
+
+      playerIds = [...teamA, ...teamB];
+
+      // Store for post-creation linking
+      pendingClubRaidMatchId = nextMatch.id;
     } else {
       // Smart modes: casual, balanced, competitive — all use selectPairing with different config
       const pairingInput = buildPairingInput(sessionId, queue, matchingMode);
@@ -205,6 +229,14 @@ export function startMatch(sessionId: string, courtNumber: number): Match {
     assigned_bracket: assignedBracket,
   };
   createMatch(matchRow);
+
+  // 6b. Link club raid schedule match if applicable
+  if (pendingClubRaidMatchId) {
+    updateClubRaidMatch(pendingClubRaidMatchId, {
+      match_id: matchRow.id,
+      status: 'active',
+    });
+  }
 
   // 7. Remove selected players' queue entries (by anchor player_id for pair slots)
   const selectedCandidateIds = getSelectedCandidateIds(playerIds, candidatePool);

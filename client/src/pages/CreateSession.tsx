@@ -26,6 +26,7 @@ function CreateSession() {
   const [gameMode, setGameMode] = useState<GameMode>('doubles');
   const [matchingMode, setMatchingMode] = useState<MatchingMode>('casual');
   const [sessionDurationHours, setSessionDurationHours] = useState(4);
+  const [clubRaidConfig, setClubRaidConfig] = useState({ clubCount: 3, clubSize: 4 });
 
   // Player Check-In
   const [pendingPlayers, setPendingPlayers] = useState<PendingPlayer[]>([]);
@@ -237,6 +238,7 @@ function CreateSession() {
         matchingMode,
         sessionDurationHours,
         mlpConfig: gameMode === 'mlp' ? mlpConfig : undefined,
+        clubRaidConfig: matchingMode === 'club_raid' ? clubRaidConfig : undefined,
       });
 
       // 3. Add all players — checked-in go to queue (shuffled), others go to bench
@@ -540,6 +542,7 @@ function CreateSession() {
                 {([
                   { value: 'casual', label: 'Casual', badge: null, desc: 'Every player faces a fresh opponent each round. Perfect for social sessions where variety and fun matter more than competition.' },
                   { value: 'comeback', label: 'Comeback', badge: null, desc: 'Winners face winners, losers face losers. After the first round, the queue splits into two — everyone gets a fair shot at a comeback.' },
+                  { value: 'club_raid', label: 'Club Raid', badge: 'COMING SOON', desc: 'Multiple clubs compete in round-robin matches. Always cross-club play — you never face your own club members. Great for team rivalries!', disabled: true },
                   { value: 'balanced', label: 'Smart', badge: 'COMING SOON', desc: 'Equal court time for everyone with skill-balanced teams. The algorithm ensures fair play while keeping matches competitive. Best for most open play sessions.', disabled: true },
                   { value: 'competitive', label: 'Competitive', badge: 'COMING SOON', desc: 'Skill rating drives all matchups. Players are grouped by ability for the tightest possible games. Repeat opponents may occur.', disabled: true },
                 ] as const).map((option) => (
@@ -591,6 +594,42 @@ function CreateSession() {
                     </span>
                   </button>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Club Raid Configuration */}
+          {matchingMode === 'club_raid' && (
+            <div style={{ marginTop: '1rem', padding: '1rem', border: '1px solid var(--color-border)', borderRadius: '8px', background: 'var(--color-surface)' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, fontSize: '0.9rem' }}>Club Raid Settings</label>
+              <p style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
+                Configure how many clubs will compete and how many players per club.
+              </p>
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <div style={{ flex: 1 }}>
+                  <label htmlFor="clubCount" style={{ display: 'block', fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Number of Clubs</label>
+                  <input
+                    id="clubCount"
+                    type="number"
+                    min={2}
+                    max={6}
+                    value={clubRaidConfig.clubCount}
+                    onChange={(e) => setClubRaidConfig(prev => ({ ...prev, clubCount: parseInt(e.target.value) || 3 }))}
+                    style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--color-border)', borderRadius: '6px', fontSize: '0.9rem' }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label htmlFor="clubSize" style={{ display: 'block', fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Players per Club</label>
+                  <input
+                    id="clubSize"
+                    type="number"
+                    min={2}
+                    max={6}
+                    value={clubRaidConfig.clubSize}
+                    onChange={(e) => setClubRaidConfig(prev => ({ ...prev, clubSize: parseInt(e.target.value) || 4 }))}
+                    style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--color-border)', borderRadius: '6px', fontSize: '0.9rem' }}
+                  />
+                </div>
               </div>
             </div>
           )}

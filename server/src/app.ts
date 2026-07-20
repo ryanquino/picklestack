@@ -16,6 +16,7 @@ import { computeWaitEstimates } from './services/queueEstimatorService';
 import { computePaceMetrics } from './services/paceService';
 import { computeMatchQuality, getSessionQualityMetrics } from './services/qualityScorerService';
 import * as mlpTournament from './services/mlpTournamentService';
+import * as repo from './repository';
 import {
   getActiveMatchByCourt,
   getActiveMatchesBySession,
@@ -89,7 +90,7 @@ app.post('/api/sessions', (req: Request, res: Response, next: NextFunction) => {
 app.put('/api/sessions/:sessionId/settings', (req: Request, res: Response, next: NextFunction) => {
   try {
     const sessionId = req.params.sessionId as string;
-    const { name, courtCount, courtName, sessionType, gameMode, matchingMode, sessionDurationHours, mlpConfig } = req.body;
+    const { name, courtCount, courtName, sessionType, gameMode, matchingMode, sessionDurationHours, mlpConfig, clubRaidConfig } = req.body;
     sessionService.updateSessionSettings(sessionId, {
       name,
       courtCount,
@@ -99,6 +100,7 @@ app.put('/api/sessions/:sessionId/settings', (req: Request, res: Response, next:
       matchingMode,
       sessionDurationHours: sessionDurationHours ?? 4,
       mlpConfig: mlpConfig ?? undefined,
+      clubRaidConfig: clubRaidConfig ?? undefined,
     });
     res.status(200).json({ success: true });
   } catch (err) {
@@ -1962,6 +1964,306 @@ app.post('/api/sessions/:sessionId/tournament/start', (req: Request, res: Respon
     db.prepare('UPDATE tournament_brackets SET match_id = ? WHERE id = ?').run(match.id, nextBracket.id);
 
     res.status(201).json({ match, bracket: { ...nextBracket, matchId: match.id } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ============================================================
+// Club Raid Routes
+// ============================================================
+
+import * as clubRaidService from './services/clubRaidService';
+
+/**
+ * POST /api/sessions/:sessionId/club-raid/clubs — Create clubs for a session
+ */
+app.post('/api/sessions/:sessionId/club-raid/clubs', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const session = getSessionById(sessionId);
+    if (!session) throw new NotFoundError('Session not found');
+    if (session.status === 'ended') throw new ValidationError('Session has ended', ['sessionId']);
+
+    const { clubCount, clubSize } = req.body;
+    if (!clubCount || clubCount < 2 || clubCount > 6) {
+      throw new ValidationError('Club count must be between 2 and 6', ['clubCount']);
+    }
+    if (!clubSize || clubSize < 2 || clubSize > 6) {
+      throw new ValidationError('Club size must be between 2 and 6', ['clubSize']);
+    }
+
+    // Delete existing clubs if reconfiguring
+    clubRaidService.deleteSessionData(sessionId);
+
+    const clubs = clubRaidService.createClubs(sessionId, { clubCount, clubSize });
+
+    // Store config on session
+    const config = JSON.stringify({ clubCount, clubSize });
+    const db = getDb();
+    db.prepare('UPDATE sessions SET club_raid_config = ? WHERE id = ?').run(config, sessionId);
+
+    res.status(201).json({ clubs });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/sessions/:sessionId/club-raid/clubs — Get clubs for a session
+ */
+app.get('/api/sessions/:sessionId/club-raid/clubs', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const session = getSessionById(sessionId);
+    if (!session) throw new NotFoundError('Session not found');
+
+    const clubs = clubRaidService.getClubs(sessionId);
+    res.json({ clubs });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/sessions/:sessionId/club-raid/clubs/:clubId/players — Add player to club
+ */
+app.post('/api/sessions/:sessionId/club-raid/clubs/:clubId/players', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const clubId = req.params.clubId as string;
+    const { playerId } = req.body;
+
+    const session = getSessionById(sessionId);
+    if (!session) throw new NotFoundError('Session not found');
+    if (session.status === 'ended') throw new ValidationError('Session has ended', ['sessionId']);
+
+    const club = repo.getClubById(clubId);
+    if (!club) throw new NotFoundError('Club not found');
+
+    // Check club size limit
+    const config = session.club_raid_config ? JSON.parse(session.club_raid_config) : null;
+    if (config) {
+      const members = repo.getClubMembersByClub(clubId);
+      if (members.length >= config.clubSize) {
+        throw new ValidationError('Club is full', ['clubId']);
+      }
+    }
+
+    // Remove player from any other club in this session first
+    clubRaidService.removePlayerFromClubs(sessionId, playerId);
+
+    const member = clubRaidService.addPlayerToClub(clubId, playerId);
+    res.status(201).json({ member });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * DELETE /api/sessions/:sessionId/club-raid/clubs/:clubId/players/:playerId — Remove player from club
+ */
+app.delete('/api/sessions/:sessionId/club-raid/clubs/:clubId/players/:playerId', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const clubId = req.params.clubId as string;
+    const playerId = req.params.playerId as string;
+
+    const session = getSessionById(sessionId);
+    if (!session) throw new NotFoundError('Session not found');
+
+    repo.removeClubMember(clubId, playerId);
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/sessions/:sessionId/club-raid/auto-assign — Auto-assign players to clubs
+ */
+app.post('/api/sessions/:sessionId/club-raid/auto-assign', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const sessionRow = repo.getSessionById(sessionId);
+    if (!sessionRow) throw new NotFoundError('Session not found');
+    if (sessionRow.status === 'ended') throw new ValidationError('Session has ended', ['sessionId']);
+
+    // Use provided config or fall back to stored config
+    let config = req.body.clubCount && req.body.clubSize
+      ? { clubCount: req.body.clubCount, clubSize: req.body.clubSize }
+      : sessionRow.club_raid_config ? JSON.parse(sessionRow.club_raid_config) : null;
+    if (!config) throw new ValidationError('Club Raid config not found. Provide clubCount and clubSize.', ['sessionId']);
+
+    // Get all checked-in players
+    const players = repo.getPlayersBySession(sessionId);
+
+    // Clear existing assignments
+    clubRaidService.deleteSessionData(sessionId);
+    clubRaidService.createClubs(sessionId, { clubCount: config.clubCount, clubSize: config.clubSize });
+
+    // Get fresh clubs
+    const freshClubs = clubRaidService.getClubs(sessionId);
+
+    // Shuffle players for random assignment
+    const shuffled = [...players].sort(() => Math.random() - 0.5);
+
+    // Assign players round-robin to clubs
+    for (let i = 0; i < shuffled.length; i++) {
+      const clubIndex = i % freshClubs.length;
+      const club = freshClubs[clubIndex];
+
+      // Check if club is full
+      if (club.members.length < config.clubSize) {
+        clubRaidService.addPlayerToClub(club.id, shuffled[i].id);
+      }
+    }
+
+    const result = clubRaidService.getClubs(sessionId);
+    res.json({ clubs: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/sessions/:sessionId/club-raid/generate-schedule — Generate round-robin schedule
+ */
+app.post('/api/sessions/:sessionId/club-raid/generate-schedule', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const session = getSessionById(sessionId);
+    if (!session) throw new NotFoundError('Session not found');
+    if (session.status === 'ended') throw new ValidationError('Session has ended', ['sessionId']);
+
+    const clubs = clubRaidService.getClubs(sessionId);
+    if (clubs.length < 2) throw new ValidationError('Need at least 2 clubs to generate schedule', ['sessionId']);
+
+    const matches = clubRaidService.generateRoundRobinSchedule(sessionId, clubs);
+    const clubSize = repo.getClubMembersByClub(clubs[0].id).length;
+    res.status(201).json({ matches, totalRounds: clubs.length - 1, subMatchesPerRound: Math.floor(clubSize / 2) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/sessions/:sessionId/club-raid/add-round — Generate one additional round
+ */
+app.post('/api/sessions/:sessionId/club-raid/add-round', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const session = getSessionById(sessionId);
+    if (!session) throw new NotFoundError('Session not found');
+    if (session.status === 'ended') throw new ValidationError('Session has ended', ['sessionId']);
+
+    const clubs = clubRaidService.getClubs(sessionId);
+    if (clubs.length < 2) throw new ValidationError('Need at least 2 clubs', ['sessionId']);
+
+    const matches = clubRaidService.generateNextRound(sessionId);
+    res.status(201).json({ matches });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/sessions/:sessionId/club-raid/schedule — Get the round-robin schedule
+ */
+app.get('/api/sessions/:sessionId/club-raid/schedule', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const session = getSessionById(sessionId);
+    if (!session) throw new NotFoundError('Session not found');
+
+    const rows = repo.getClubRaidMatchesBySession(sessionId);
+    const matches = rows.map(m => {
+      const getPlayerName = (id: string | null) => {
+        if (!id) return null;
+        const p = repo.getPlayerById(id);
+        return p?.name ?? null;
+      };
+      return {
+        id: m.id,
+        sessionId: m.session_id,
+        round: m.round,
+        clubAId: m.club_a_id,
+        clubBId: m.club_b_id,
+        clubAPlayer1: m.club_a_player_1,
+        clubAPlayer2: m.club_a_player_2,
+        clubBPlayer1: m.club_b_player_1,
+        clubBPlayer2: m.club_b_player_2,
+        clubAPlayer1Name: getPlayerName(m.club_a_player_1),
+        clubAPlayer2Name: getPlayerName(m.club_a_player_2),
+        clubBPlayer1Name: getPlayerName(m.club_b_player_1),
+        clubBPlayer2Name: getPlayerName(m.club_b_player_2),
+        matchId: m.match_id,
+        status: m.status,
+        winnerClubId: m.winner_club_id,
+        createdAt: m.created_at,
+      };
+    });
+    res.json({ matches });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/sessions/:sessionId/club-raid/standings — Get club standings
+ */
+app.get('/api/sessions/:sessionId/club-raid/standings', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const session = getSessionById(sessionId);
+    if (!session) throw new NotFoundError('Session not found');
+
+    const standings = clubRaidService.getStandings(sessionId);
+    res.json({ standings });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/sessions/:sessionId/club-raid/schedule/:matchId/start — Start a club raid match
+ */
+app.post('/api/sessions/:sessionId/club-raid/schedule/:matchId/start', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.sessionId as string;
+    const clubRaidMatchId = req.params.matchId as string;
+    const session = getSessionById(sessionId);
+    if (!session) throw new NotFoundError('Session not found');
+    if (session.status === 'ended') throw new ValidationError('Session has ended', ['sessionId']);
+
+    const scheduleMatch = repo.getClubRaidMatchesBySession(sessionId).find(m => m.id === clubRaidMatchId);
+    if (!scheduleMatch) throw new NotFoundError('Club raid match not found');
+
+    // Use pre-assigned players from schedule generation
+    const teamA = [scheduleMatch.club_a_player_1, scheduleMatch.club_a_player_2].filter(Boolean) as string[];
+    const teamB = [scheduleMatch.club_b_player_1, scheduleMatch.club_b_player_2].filter(Boolean) as string[];
+
+    if (teamA.length < 2 || teamB.length < 2) {
+      throw new ValidationError('This match is missing player assignments. Regenerate the schedule.', ['matchId']);
+    }
+
+    // Find an available court
+    const courts = courtService.getCourts(sessionId);
+    const availableCourt = courts.find(c => c.status === 'available');
+    if (!availableCourt) {
+      throw new ValidationError('No courts available to start a match', ['courtNumber']);
+    }
+
+    // Create the match using startMatchManual to bypass club_raid queue pairing
+    const match = courtService.startMatchManual(sessionId, availableCourt.courtNumber, [...teamA, ...teamB]);
+
+    // Link to club raid match
+    repo.updateClubRaidMatch(clubRaidMatchId, {
+      match_id: match.id,
+      status: 'active',
+    });
+
+    res.status(201).json({ match, clubRaidMatchId });
   } catch (err) {
     next(err);
   }

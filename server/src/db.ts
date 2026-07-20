@@ -273,6 +273,68 @@ export function getDb(): Database.Database {
     db.exec("ALTER TABLE matches ADD COLUMN assigned_bracket TEXT DEFAULT NULL");
   }
 
+  // Migration: Add club_raid_config column to sessions for Club Raid mode
+  const hasClubRaidConfig = sessionColumnsInfo.some((col) => col.name === 'club_raid_config');
+  if (!hasClubRaidConfig) {
+    db.exec("ALTER TABLE sessions ADD COLUMN club_raid_config TEXT DEFAULT NULL");
+  }
+
+  // Create clubs table for Club Raid mode
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS clubs (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      color TEXT NOT NULL DEFAULT '#3b82f6',
+      created_at TEXT NOT NULL
+    )
+  `);
+
+  // Create club_members table for Club Raid mode
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS club_members (
+      id TEXT PRIMARY KEY,
+      club_id TEXT NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+      player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      joined_at TEXT NOT NULL
+    )
+  `);
+
+  // Create unique index on club_members to prevent duplicate assignments
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_club_members_player
+    ON club_members(club_id, player_id)
+  `);
+
+  // Create club_raid_matches table for round-robin schedule
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS club_raid_matches (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      round INTEGER NOT NULL,
+      club_a_id TEXT NOT NULL REFERENCES clubs(id),
+      club_b_id TEXT NOT NULL REFERENCES clubs(id),
+      match_id TEXT REFERENCES matches(id),
+      status TEXT NOT NULL DEFAULT 'scheduled',
+      winner_club_id TEXT REFERENCES clubs(id),
+      created_at TEXT NOT NULL
+    )
+  `);
+
+  // Create index on club_raid_matches for fast lookups
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_club_raid_matches_session
+    ON club_raid_matches(session_id, round)
+  `);
+
+  // Migration: Add player assignment columns to club_raid_matches
+  const cramColumnsInfo = db.pragma('table_info(club_raid_matches)') as Array<{ name: string }>;
+  for (const col of ['club_a_player_1', 'club_a_player_2', 'club_b_player_1', 'club_b_player_2']) {
+    if (!cramColumnsInfo.some((c) => c.name === col)) {
+      db.exec(`ALTER TABLE club_raid_matches ADD COLUMN ${col} TEXT DEFAULT NULL REFERENCES players(id)`);
+    }
+  }
+
   return db;
 }
 

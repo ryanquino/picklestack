@@ -164,6 +164,10 @@ function CourtCard({
     setSelectedWinner(null);
   }, [match?.id]);
 
+  function handleToggleWinner(team: 'team1' | 'team2') {
+    setSelectedWinner((prev) => (prev === team ? null : team));
+  }
+
   async function handleStartMatch() {
     onCancelCountdown(court.courtNumber);
     setLoading(true);
@@ -598,10 +602,6 @@ function CourtGrid({
     setDialogCourtNumber(courtNumber);
   }
 
-  function handleToggleWinner(team: 'team1' | 'team2') {
-    setSelectedWinner((prev) => (prev === team ? null : team));
-  }
-
   function handleCloseDialog() {
     setDialogCourtNumber(null);
   }
@@ -680,7 +680,7 @@ function CourtGrid({
           courtNumber={dialogCourtNumber}
           players={dialogMatch.players}
           matchStartedAt={dialogMatch.startedAt}
-          initialWinner={selectedWinner}
+          initialWinner={null}
           onClose={handleCloseDialog}
           onComplete={handleMatchCompleted}
         />

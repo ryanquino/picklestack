@@ -79,7 +79,7 @@ export type SessionType = 'tournament' | 'open_play';
 export type GameMode = 'doubles' | 'singles' | 'mlp';
 
 /** Matching mode for player assignment */
-export type MatchingMode = 'casual' | 'balanced' | 'competitive' | 'queue' | 'comeback';
+export type MatchingMode = 'casual' | 'balanced' | 'competitive' | 'queue' | 'comeback' | 'club_raid';
 
 /** Session settings for configuration */
 export interface SessionSettings {
@@ -91,6 +91,7 @@ export interface SessionSettings {
   matchingMode: MatchingMode;
   sessionDurationHours: number;
   mlpConfig?: MLPTournamentConfig;
+  clubRaidConfig?: ClubRaidConfig;
 }
 
 // --- Smart Match Scoring Types ---
@@ -294,4 +295,65 @@ export interface MLPTeamMatchResult {
   winnerTeamId: string;
   dreamBreakerPlayed: boolean;
   completedAt: string;
+}
+
+// ============================================================
+// Club Raid Types
+// ============================================================
+
+/** Club Raid tournament configuration */
+export interface ClubRaidConfig {
+  clubCount: number;                // Number of clubs (3-6)
+  clubSize: number;                 // Players per club (2-6)
+}
+
+/** A club in the Club Raid tournament */
+export interface Club {
+  id: string;
+  sessionId: string;
+  name: string;
+  color: string;
+  createdAt: string;
+}
+
+/** A member assigned to a club */
+export interface ClubMember {
+  id: string;
+  clubId: string;
+  playerId: string;
+  playerName?: string;
+  joinedAt: string;
+}
+
+/** Club standings for the leaderboard */
+export interface ClubStandings {
+  clubId: string;
+  clubName: string;
+  clubColor: string;
+  wins: number;
+  losses: number;
+  matchesPlayed: number;
+  winRate: number;
+  members: ClubMember[];
+}
+
+/** A scheduled cross-club match */
+export interface ClubRaidMatch {
+  id: string;
+  sessionId: string;
+  round: number;
+  clubAId: string;
+  clubBId: string;
+  clubAPlayer1: string | null;
+  clubAPlayer2: string | null;
+  clubBPlayer1: string | null;
+  clubBPlayer2: string | null;
+  clubAPlayer1Name: string | null;
+  clubAPlayer2Name: string | null;
+  clubBPlayer1Name: string | null;
+  clubBPlayer2Name: string | null;
+  matchId: string | null;
+  status: 'scheduled' | 'active' | 'completed';
+  winnerClubId: string | null;
+  createdAt: string;
 }

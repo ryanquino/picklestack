@@ -17,6 +17,7 @@ export interface SessionRow {
   matching_mode: string;
   session_duration_hours: number;
   mlp_config?: string | null;
+  club_raid_config?: string | null;
   live_view_url: string;
   created_at: string;
   updated_at: string;
@@ -57,6 +58,37 @@ export interface MatchRow {
   assigned_bracket: string | null; // 'winners' | 'losers' | null — comeback mode bracket assignment
 }
 
+export interface ClubRow {
+  id: string;
+  session_id: string;
+  name: string;
+  color: string;
+  created_at: string;
+}
+
+export interface ClubMemberRow {
+  id: string;
+  club_id: string;
+  player_id: string;
+  joined_at: string;
+}
+
+export interface ClubRaidMatchRow {
+  id: string;
+  session_id: string;
+  round: number;
+  club_a_id: string;
+  club_b_id: string;
+  club_a_player_1: string | null;
+  club_a_player_2: string | null;
+  club_b_player_1: string | null;
+  club_b_player_2: string | null;
+  match_id: string | null;
+  status: string;
+  winner_club_id: string | null;
+  created_at: string;
+}
+
 // ============================================================
 // Session Repository
 // ============================================================
@@ -64,8 +96,8 @@ export interface MatchRow {
 export function createSession(session: SessionRow): SessionRow {
   const db = getDb();
   db.prepare(`
-    INSERT INTO sessions (id, name, court_count, status, pairing_mode, court_name, session_type, game_mode, matching_mode, live_view_url, created_at, updated_at)
-    VALUES (@id, @name, @court_count, @status, @pairing_mode, @court_name, @session_type, @game_mode, @matching_mode, @live_view_url, @created_at, @updated_at)
+    INSERT INTO sessions (id, name, court_count, status, pairing_mode, court_name, session_type, game_mode, matching_mode, session_duration_hours, mlp_config, club_raid_config, live_view_url, created_at, updated_at)
+    VALUES (@id, @name, @court_count, @status, @pairing_mode, @court_name, @session_type, @game_mode, @matching_mode, @session_duration_hours, @mlp_config, @club_raid_config, @live_view_url, @created_at, @updated_at)
   `).run(session);
   return session;
 }
@@ -518,6 +550,7 @@ export interface SessionSettingsRow {
   matching_mode: string;
   session_duration_hours: number;
   mlp_config: string | null;
+  club_raid_config: string | null;
 }
 
 export function updateSessionSettings(sessionId: string, settings: SessionSettingsRow & { updated_at: string }): void {
@@ -527,6 +560,7 @@ export function updateSessionSettings(sessionId: string, settings: SessionSettin
     SET name = @name, court_count = @court_count, court_name = @court_name,
         session_type = @session_type, game_mode = @game_mode, matching_mode = @matching_mode,
         session_duration_hours = @session_duration_hours, mlp_config = @mlp_config,
+        club_raid_config = @club_raid_config,
         updated_at = @updated_at
     WHERE id = @id
   `).run({ id: sessionId, ...settings });
@@ -535,7 +569,7 @@ export function updateSessionSettings(sessionId: string, settings: SessionSettin
 export function getSessionSettings(sessionId: string): SessionSettingsRow | undefined {
   const db = getDb();
   const row = db.prepare(
-    'SELECT name, court_count, court_name, session_type, game_mode, matching_mode, session_duration_hours, mlp_config FROM sessions WHERE id = ?'
+    'SELECT name, court_count, court_name, session_type, game_mode, matching_mode, session_duration_hours, mlp_config, club_raid_config FROM sessions WHERE id = ?'
   ).get(sessionId) as SessionSettingsRow | undefined;
   return row;
 }
@@ -612,4 +646,170 @@ export function deleteAchievement(sessionId: string, playerId: string, kind: str
   db.prepare(
     'DELETE FROM player_achievements WHERE session_id = ? AND player_id = ? AND kind = ?'
   ).run(sessionId, playerId, kind);
+}
+
+// ============================================================
+// Club Raid Repository
+// ============================================================
+
+export function createClub(club: ClubRow): ClubRow {
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO clubs (id, session_id, name, color, created_at)
+    VALUES (@id, @session_id, @name, @color, @created_at)
+  `).run(club);
+  return club;
+}
+
+export function getClubsBySession(sessionId: string): ClubRow[] {
+  const db = getDb();
+  return db.prepare(
+    'SELECT * FROM clubs WHERE session_id = ? ORDER BY name'
+  ).all(sessionId) as ClubRow[];
+}
+
+export function getClubById(clubId: string): ClubRow | undefined {
+  const db = getDb();
+  return db.prepare('SELECT * FROM clubs WHERE id = ?').get(clubId) as ClubRow | undefined;
+}
+
+export function deleteClubsBySession(sessionId: string): void {
+  const db = getDb();
+  db.prepare('DELETE FROM clubs WHERE session_id = ?').run(sessionId);
+}
+
+// Club Members
+
+export function addClubMember(member: ClubMemberRow): ClubMemberRow {
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO club_members (id, club_id, player_id, joined_at)
+    VALUES (@id, @club_id, @player_id, @joined_at)
+    ON CONFLICT(club_id, player_id) DO NOTHING
+  `).run(member);
+  return member;
+}
+
+export function getClubMembersByClub(clubId: string): ClubMemberRow[] {
+  const db = getDb();
+  return db.prepare(
+    'SELECT * FROM club_members WHERE club_id = ? ORDER BY joined_at'
+  ).all(clubId) as ClubMemberRow[];
+}
+
+export function getClubMembersBySession(sessionId: string): ClubMemberRow[] {
+  const db = getDb();
+  return db.prepare(`
+    SELECT cm.* FROM club_members cm
+    JOIN clubs c ON cm.club_id = c.id
+    WHERE c.session_id = ?
+    ORDER BY c.name, cm.joined_at
+  `).all(sessionId) as ClubMemberRow[];
+}
+
+export function getClubForMember(sessionId: string, playerId: string): ClubRow | undefined {
+  const db = getDb();
+  return db.prepare(`
+    SELECT c.* FROM clubs c
+    JOIN club_members cm ON c.id = cm.club_id
+    WHERE c.session_id = ? AND cm.player_id = ?
+  `).get(sessionId, playerId) as ClubRow | undefined;
+}
+
+export function removeClubMember(clubId: string, playerId: string): void {
+  const db = getDb();
+  db.prepare('DELETE FROM club_members WHERE club_id = ? AND player_id = ?').run(clubId, playerId);
+}
+
+export function deleteClubMembersBySession(sessionId: string): void {
+  const db = getDb();
+  db.prepare(`
+    DELETE FROM club_members WHERE club_id IN (
+      SELECT id FROM clubs WHERE session_id = ?
+    )
+  `).run(sessionId);
+}
+
+// Club Raid Matches
+
+export function createClubRaidMatch(match: ClubRaidMatchRow): ClubRaidMatchRow {
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO club_raid_matches (id, session_id, round, club_a_id, club_b_id, club_a_player_1, club_a_player_2, club_b_player_1, club_b_player_2, match_id, status, winner_club_id, created_at)
+    VALUES (@id, @session_id, @round, @club_a_id, @club_b_id, @club_a_player_1, @club_a_player_2, @club_b_player_1, @club_b_player_2, @match_id, @status, @winner_club_id, @created_at)
+  `).run(match);
+  return match;
+}
+
+export function getClubRaidMatchesBySession(sessionId: string): ClubRaidMatchRow[] {
+  const db = getDb();
+  return db.prepare(
+    'SELECT * FROM club_raid_matches WHERE session_id = ? ORDER BY round, id'
+  ).all(sessionId) as ClubRaidMatchRow[];
+}
+
+export function getClubRaidMatchesByRound(sessionId: string, round: number): ClubRaidMatchRow[] {
+  const db = getDb();
+  return db.prepare(
+    'SELECT * FROM club_raid_matches WHERE session_id = ? AND round = ? ORDER BY id'
+  ).all(sessionId, round) as ClubRaidMatchRow[];
+}
+
+export function updateClubRaidMatch(matchId: string, updates: Partial<Pick<ClubRaidMatchRow, 'match_id' | 'status' | 'winner_club_id' | 'club_a_player_1' | 'club_a_player_2' | 'club_b_player_1' | 'club_b_player_2'>>): void {
+  const db = getDb();
+  const setClauses: string[] = [];
+  const params: Record<string, unknown> = { id: matchId };
+
+  if (updates.match_id !== undefined) {
+    setClauses.push('match_id = @match_id');
+    params.match_id = updates.match_id;
+  }
+  if (updates.status !== undefined) {
+    setClauses.push('status = @status');
+    params.status = updates.status;
+  }
+  if (updates.winner_club_id !== undefined) {
+    setClauses.push('winner_club_id = @winner_club_id');
+    params.winner_club_id = updates.winner_club_id;
+  }
+  if (updates.club_a_player_1 !== undefined) {
+    setClauses.push('club_a_player_1 = @club_a_player_1');
+    params.club_a_player_1 = updates.club_a_player_1;
+  }
+  if (updates.club_a_player_2 !== undefined) {
+    setClauses.push('club_a_player_2 = @club_a_player_2');
+    params.club_a_player_2 = updates.club_a_player_2;
+  }
+  if (updates.club_b_player_1 !== undefined) {
+    setClauses.push('club_b_player_1 = @club_b_player_1');
+    params.club_b_player_1 = updates.club_b_player_1;
+  }
+  if (updates.club_b_player_2 !== undefined) {
+    setClauses.push('club_b_player_2 = @club_b_player_2');
+    params.club_b_player_2 = updates.club_b_player_2;
+  }
+
+  if (setClauses.length === 0) return;
+
+  db.prepare(`UPDATE club_raid_matches SET ${setClauses.join(', ')} WHERE id = @id`).run(params);
+}
+
+export function deleteClubRaidMatchesBySession(sessionId: string): void {
+  const db = getDb();
+  db.prepare('DELETE FROM club_raid_matches WHERE session_id = ?').run(sessionId);
+}
+
+export function getClubStandings(sessionId: string): Array<{ club_id: string; wins: number; losses: number; matches_played: number }> {
+  const db = getDb();
+  return db.prepare(`
+    SELECT
+      c.id as club_id,
+      COALESCE(SUM(CASE WHEN crm.winner_club_id = c.id THEN 1 ELSE 0 END), 0) as wins,
+      COALESCE(SUM(CASE WHEN crm.winner_club_id IS NOT NULL AND crm.winner_club_id != c.id THEN 1 ELSE 0 END), 0) as losses,
+      COALESCE(SUM(CASE WHEN crm.status = 'completed' THEN 1 ELSE 0 END), 0) as matches_played
+    FROM clubs c
+    LEFT JOIN club_raid_matches crm ON (c.id = crm.club_a_id OR c.id = crm.club_b_id) AND crm.session_id = c.session_id
+    WHERE c.session_id = ?
+    GROUP BY c.id
+  `).all(sessionId) as Array<{ club_id: string; wins: number; losses: number; matches_played: number }>;
 }

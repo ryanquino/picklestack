@@ -488,3 +488,96 @@ export function updateTournamentMatch(
     body: JSON.stringify({ subGames, winnerTeamId, dreamBreakerPlayed }),
   });
 }
+
+// ============================================================
+// Club Raid API
+// ============================================================
+
+import type { Club, ClubMember, ClubRaidMatch, ClubStandings } from './types';
+
+/** Create clubs for a session */
+export function createClubRaidClubs(
+  sessionId: string,
+  clubCount: number,
+  clubSize: number
+): Promise<{ clubs: Club[] }> {
+  return request(`/sessions/${sessionId}/club-raid/clubs`, {
+    method: 'POST',
+    body: JSON.stringify({ clubCount, clubSize }),
+  });
+}
+
+/** Get clubs for a session */
+export function getClubRaidClubs(sessionId: string): Promise<{ clubs: Array<Club & { members: ClubMember[] }> }> {
+  return request(`/sessions/${sessionId}/club-raid/clubs`);
+}
+
+/** Add player to a club */
+export function addPlayerToClub(
+  sessionId: string,
+  clubId: string,
+  playerId: string
+): Promise<{ member: ClubMember }> {
+  return request(`/sessions/${sessionId}/club-raid/clubs/${clubId}/players`, {
+    method: 'POST',
+    body: JSON.stringify({ playerId }),
+  });
+}
+
+/** Remove player from a club */
+export function removePlayerFromClub(
+  sessionId: string,
+  clubId: string,
+  playerId: string
+): Promise<void> {
+  return request(`/sessions/${sessionId}/club-raid/clubs/${clubId}/players/${playerId}`, {
+    method: 'DELETE',
+  });
+}
+
+/** Auto-assign players to clubs */
+export function autoAssignClubRaidPlayers(
+  sessionId: string
+): Promise<{ clubs: Array<Club & { members: ClubMember[] }> }> {
+  return request(`/sessions/${sessionId}/club-raid/auto-assign`, {
+    method: 'POST',
+  });
+}
+
+/** Generate round-robin schedule */
+export function generateClubRaidSchedule(
+  sessionId: string
+): Promise<{ matches: ClubRaidMatch[]; totalRounds: number }> {
+  return request(`/sessions/${sessionId}/club-raid/generate-schedule`, {
+    method: 'POST',
+  });
+}
+
+/** Generate one additional round of matches */
+export function addClubRaidRound(
+  sessionId: string
+): Promise<{ matches: ClubRaidMatch[] }> {
+  return request(`/sessions/${sessionId}/club-raid/add-round`, {
+    method: 'POST',
+  });
+}
+
+/** Get round-robin schedule */
+export function getClubRaidSchedule(sessionId: string): Promise<{ matches: ClubRaidMatch[] }> {
+  return request(`/sessions/${sessionId}/club-raid/schedule`);
+}
+
+/** Get club standings */
+export function getClubRaidStandings(sessionId: string): Promise<{ standings: ClubStandings[] }> {
+  return request(`/sessions/${sessionId}/club-raid/standings`);
+}
+
+/** Start a club raid match */
+export function startClubRaidMatch(
+  sessionId: string,
+  clubRaidMatchId: string
+): Promise<{ match: { id: string }; clubRaidMatchId: string }> {
+  return request(`/sessions/${sessionId}/club-raid/schedule/${clubRaidMatchId}/start`, {
+    method: 'POST',
+  });
+}

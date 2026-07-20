@@ -62,7 +62,7 @@ export type SessionType = 'tournament' | 'open_play';
 export type GameMode = 'doubles' | 'singles' | 'mlp';
 
 /** Matching mode for player assignment */
-export type MatchingMode = 'casual' | 'balanced' | 'competitive' | 'queue' | 'comeback';
+export type MatchingMode = 'casual' | 'balanced' | 'competitive' | 'queue' | 'comeback' | 'club_raid';
 
 /** Extended session settings */
 export interface SessionSettings {
@@ -74,6 +74,7 @@ export interface SessionSettings {
   matchingMode: MatchingMode;
   sessionDurationHours: number;
   mlpConfig?: MLPTournamentConfig;
+  clubRaidConfig?: ClubRaidConfig;
 }
 
 /** Match result with optional scores */
@@ -345,4 +346,73 @@ export interface MLPTeamMatchResult {
   totalScoreA: number;              // Total points scored by team A
   totalScoreB: number;              // Total points scored by team B
   completedAt: string;
+}
+
+// ============================================================
+// Club Raid Types
+// ============================================================
+
+/** Club Raid tournament configuration stored on the session */
+export interface ClubRaidConfig {
+  clubCount: number;                // Number of clubs (3-6)
+  clubSize: number;                 // Players per club (2-6)
+}
+
+/** A club in the Club Raid tournament */
+export interface Club {
+  id: string;
+  sessionId: string;
+  name: string;                     // Club display name
+  color: string;                    // Hex color for UI
+  createdAt: string;
+}
+
+/** A member assigned to a club */
+export interface ClubMember {
+  id: string;
+  clubId: string;
+  playerId: string;
+  playerName?: string;
+  joinedAt: string;
+}
+
+/** Club standings for the leaderboard */
+export interface ClubStandings {
+  clubId: string;
+  clubName: string;
+  clubColor: string;
+  wins: number;
+  losses: number;
+  matchesPlayed: number;
+  winRate: number;
+  members: ClubMember[];
+}
+
+/** A scheduled cross-club match in the round-robin */
+export interface ClubRaidMatch {
+  id: string;
+  sessionId: string;
+  round: number;                    // Round number (1-based)
+  clubAId: string;                  // First club
+  clubBId: string;                  // Second club
+  clubAPlayer1: string | null;      // Pre-assigned player 1 from club A
+  clubAPlayer2: string | null;      // Pre-assigned player 2 from club A
+  clubBPlayer1: string | null;      // Pre-assigned player 1 from club B
+  clubBPlayer2: string | null;      // Pre-assigned player 2 from club B
+  matchId: string | null;           // FK to matches table when started
+  status: 'scheduled' | 'active' | 'completed';
+  winnerClubId: string | null;      // Set after match completes
+  createdAt: string;
+}
+
+/** Round-robin schedule for Club Raid */
+export interface ClubRaidSchedule {
+  rounds: ClubRaidMatchRound[];
+  totalRounds: number;
+}
+
+/** A single round in the round-robin */
+export interface ClubRaidMatchRound {
+  round: number;
+  matches: ClubRaidMatch[];
 }

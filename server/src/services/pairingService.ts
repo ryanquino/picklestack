@@ -685,6 +685,7 @@ export function selectPairing(input: PairingInput): PairingResult {
       }
     } else {
       // Balanced: soft preference
+      // Balanced: soft preference
       if (noRepeatOpponents.length > 0) {
         filtered = noRepeatOpponents;
       }

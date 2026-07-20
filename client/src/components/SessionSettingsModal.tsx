@@ -434,6 +434,7 @@ function SessionSettingsModal({
               {([
                 { value: 'casual', label: 'Casual', badge: null, desc: 'Every player faces a fresh opponent each round. Perfect for social sessions where variety and fun matter more than competition.', disabled: false },
                 { value: 'comeback', label: 'Comeback', badge: initialSettings.matchingMode === 'comeback' ? 'ACTIVE' : null, desc: 'Winners play winners and losers play losers in alternating brackets. Can only be set during session creation.', disabled: initialSettings.matchingMode === 'comeback' },
+                { value: 'club_raid', label: 'Club Raid', badge: 'COMING SOON', desc: 'Multiple clubs compete in round-robin matches. Always cross-club play.', disabled: true },
                 { value: 'balanced', label: 'Smart', badge: 'COMING SOON', desc: 'Equal court time for everyone with skill-balanced teams. The algorithm ensures fair play while keeping matches competitive. Best for most open play sessions.', disabled: true },
                 { value: 'competitive', label: 'Competitive', badge: 'COMING SOON', desc: 'Skill rating drives all matchups. Players are grouped by ability for the tightest possible games. Repeat opponents may occur.', disabled: true },
               ] as const).map((option) => (

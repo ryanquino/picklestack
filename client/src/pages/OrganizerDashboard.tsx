@@ -19,6 +19,7 @@ import SessionSettingsModal from '../components/SessionSettingsModal';
 import ManualMatchModal from '../components/ManualMatchModal';
 import ErrorBoundary from '../components/ErrorBoundary';
 import TournamentDashboard from '../components/TournamentDashboard';
+import ClubRaidPanel from '../components/ClubRaidPanel';
 import { AchievementNotification } from '../components/AchievementBadge';
 import type { PairingMode, Achievement, LeaderboardEntry, StarRating, GameMode, MatchingMode, FixedPair } from '../types';
 
@@ -656,6 +657,17 @@ function OrganizerDashboard() {
                 onOpenManualMatch={(courtNumber) => setManualMatchCourt(courtNumber)}
               />
               </ErrorBoundary>
+
+              {/* Club Raid assignment panel */}
+              {state.session.matchingMode === 'club_raid' && (
+                <ErrorBoundary sectionName="Club Raid">
+                  <ClubRaidPanel
+                    sessionId={sessionId!}
+                    players={(state.playerStats ?? []).map(p => ({ id: p.playerId, name: p.playerName }))}
+                    onScheduleGenerated={loadSession}
+                  />
+                </ErrorBoundary>
+              )}
 
               {/* Highlights ticker */}
               {state.highlights && state.highlights.length > 0 && (
