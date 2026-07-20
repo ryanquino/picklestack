@@ -146,7 +146,7 @@ function CourtCard({
   fixedPairs: FixedPair[];
   countdown: number | null;
   onStartMatch: (courtNumber: number) => Promise<void>;
-  onOpenCompleteDialog: (courtNumber: number) => void;
+  onOpenCompleteDialog: (courtNumber: number, winner?: 'team1' | 'team2') => void;
   onOpenReplaceModal: (oldPlayerId: string, courtNumber: number) => void;
   onPlayerClick?: (playerId: string) => void;
   onCancelCountdown: (courtNumber: number) => void;
@@ -155,18 +155,10 @@ function CourtCard({
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(courtDisplayName);
-  const [selectedWinner, setSelectedWinner] = useState<'team1' | 'team2' | null>(null);
+  const [localCourtName, setLocalCourtName] = useState<string | null>(null);
+  const effectiveCourtName = localCourtName ?? courtDisplayName;
   const status = getCourtStatus(court, match, isNextUp);
   const canStartMatch = !match && queueLength >= 4;
-
-  // Reset winner selection when the match on this court changes
-  useEffect(() => {
-    setSelectedWinner(null);
-  }, [match?.id]);
-
-  function handleToggleWinner(team: 'team1' | 'team2') {
-    setSelectedWinner((prev) => (prev === team ? null : team));
-  }
 
   async function handleStartMatch() {
     onCancelCountdown(court.courtNumber);
@@ -183,8 +175,7 @@ function CourtCard({
     if (trimmed && trimmed !== courtDisplayName) {
       try {
         await renameCourtName(sessionId, court.courtNumber, trimmed);
-        // Trigger a reload by calling onStartMatch's parent refresh
-        window.location.reload();
+        setLocalCourtName(trimmed);
       } catch {
         setEditName(courtDisplayName);
       }
@@ -200,6 +191,10 @@ function CourtCard({
 
   const team1 = match ? match.players.slice(0, 2) : [];
   const team2 = match ? match.players.slice(2, 4) : [];
+
+  function handleTeamClick(winner: 'team1' | 'team2') {
+    onOpenCompleteDialog(court.courtNumber, winner);
+  }
 
   const cardClassName = `court-card court-card--${status}${countdown !== null ? ' court-card--countdown' : ''}`;
 
@@ -233,16 +228,16 @@ function CourtCard({
             value={editName}
             onChange={(e) => setEditName(e.target.value)}
             onBlur={handleSaveName}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') { setEditName(courtDisplayName); setEditing(false); } }}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') { setEditName(effectiveCourtName); setEditing(false); } }}
             autoFocus
           />
         ) : (
           <span
             className="font-semibold court-card__name-editable"
-            onClick={() => { setEditName(courtDisplayName); setEditing(true); }}
+            onClick={() => { setEditName(effectiveCourtName); setEditing(true); }}
             title="Click to rename court"
           >
-            {courtDisplayName}
+            {effectiveCourtName}
           </span>
         )}
         {status === 'active' && (
@@ -265,20 +260,22 @@ function CourtCard({
           <div className="court-card__teams">
             {/* Team 1 */}
             <div
-              className={`court-card__team${selectedWinner === 'team1' ? ' court-card__team--selected' : ''}`}
-              onClick={() => handleToggleWinner('team1')}
+              className="court-card__team court-card__team--clickable"
+              onClick={() => handleTeamClick('team1')}
               role="button"
               tabIndex={0}
-              aria-label={`Select Team 1 as winner: ${team1.map(p => p.name).join(' and ')}`}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggleWinner('team1'); } }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleTeamClick('team1');
+                }
+              }}
+              title="Click to mark Team 1 as winner"
             >
               {match.team1Bracket && (
                 <span className={`court-card__bracket-label court-card__bracket-label--${match.team1Bracket}`}>
                   {match.team1Bracket === 'winners' ? '🏆 Winners' : match.team1Bracket === 'losers' ? '💪 Losers' : '⚖️ Neutral'}
                 </span>
-              )}
-              {selectedWinner === 'team1' && (
-                <span className="court-card__winner-badge">Winner</span>
               )}
               {team1.map((player) => {
                 const stats = getStatsForPlayer(player.id, playerStats);
@@ -338,20 +335,22 @@ function CourtCard({
 
             {/* Team 2 */}
             <div
-              className={`court-card__team${selectedWinner === 'team2' ? ' court-card__team--selected' : ''}`}
-              onClick={() => handleToggleWinner('team2')}
+              className="court-card__team court-card__team--clickable"
+              onClick={() => handleTeamClick('team2')}
               role="button"
               tabIndex={0}
-              aria-label={`Select Team 2 as winner: ${team2.map(p => p.name).join(' and ')}`}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggleWinner('team2'); } }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleTeamClick('team2');
+                }
+              }}
+              title="Click to mark Team 2 as winner"
             >
               {match.team2Bracket && (
                 <span className={`court-card__bracket-label court-card__bracket-label--${match.team2Bracket}`}>
                   {match.team2Bracket === 'winners' ? '🏆 Winners' : match.team2Bracket === 'losers' ? '💪 Losers' : '⚖️ Neutral'}
                 </span>
-              )}
-              {selectedWinner === 'team2' && (
-                <span className="court-card__winner-badge">Winner</span>
               )}
               {team2.map((player) => {
                 const stats = getStatsForPlayer(player.id, playerStats);
@@ -476,6 +475,7 @@ function CourtGrid({
   onOpenManualMatch,
 }: CourtGridProps) {
   const [dialogCourtNumber, setDialogCourtNumber] = useState<number | null>(null);
+  const [dialogWinner, setDialogWinner] = useState<'team1' | 'team2' | null>(null);
   const [replaceModalOpen, setReplaceModalOpen] = useState(false);
   const [replaceCourtNumber, setReplaceCourtNumber] = useState<number | null>(null);
   const [replaceOldPlayerId, setReplaceOldPlayerId] = useState<string | null>(null);
@@ -598,12 +598,14 @@ function CourtGrid({
     return null;
   }
 
-  function handleOpenCompleteDialog(courtNumber: number) {
+  function handleOpenCompleteDialog(courtNumber: number, winner?: 'team1' | 'team2') {
     setDialogCourtNumber(courtNumber);
+    setDialogWinner(winner ?? null);
   }
 
   function handleCloseDialog() {
     setDialogCourtNumber(null);
+    setDialogWinner(null);
   }
 
   function handleMatchCompleted() {
@@ -680,7 +682,7 @@ function CourtGrid({
           courtNumber={dialogCourtNumber}
           players={dialogMatch.players}
           matchStartedAt={dialogMatch.startedAt}
-          initialWinner={null}
+          initialWinner={dialogWinner}
           onClose={handleCloseDialog}
           onComplete={handleMatchCompleted}
         />

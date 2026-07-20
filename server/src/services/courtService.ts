@@ -444,8 +444,15 @@ function buildCandidatePool(
   if (gameMode === 'singles') {
     maxPoolSize = 4;
   } else if (matchingMode === 'casual') {
-    // Casual: moderate pool for fresh matchups while prioritizing queue order
-    maxPoolSize = getCasualPoolSize();
+    // Casual: scale pool with player count for diversity while prioritizing queue order
+    const totalPlayers = getPlayersBySession(sessionId).length;
+    if (totalPlayers >= 31) {
+      maxPoolSize = 10;
+    } else if (totalPlayers >= 17) {
+      maxPoolSize = 8;
+    } else {
+      maxPoolSize = getCasualPoolSize();
+    }
   } else {
     // Scale pool size with total players in session for better diversity
     const totalPlayers = getPlayersBySession(sessionId).length;

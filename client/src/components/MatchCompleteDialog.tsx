@@ -99,6 +99,23 @@ function MatchCompleteDialog({
     };
   }, []);
 
+  // When opened with a pre-selected winner (e.g. clicking a team on the court
+  // card), default the score to 11-0 in favor of that team.
+  useEffect(() => {
+    if (initialWinner) {
+      setSelectedWinner(initialWinner);
+      if (initialWinner === 'team1') {
+        setTeam1Score('11');
+        setTeam2Score('0');
+      } else {
+        setTeam1Score('0');
+        setTeam2Score('11');
+      }
+    }
+    // Run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Auto-determine winner from scores
   useEffect(() => {
     const s1 = team1Score === '' ? NaN : Number(team1Score);
@@ -121,6 +138,15 @@ function MatchCompleteDialog({
   function handleSelectWinner(team: 'team1' | 'team2') {
     if (submitting) return;
     setSelectedWinner(team);
+    // Default the score to 11-0 in favor of the selected winner so the user
+    // only needs to adjust the losing team's score.
+    if (team === 'team1') {
+      setTeam1Score('11');
+      setTeam2Score('0');
+    } else {
+      setTeam1Score('0');
+      setTeam2Score('11');
+    }
     setValidationError(null);
   }
 

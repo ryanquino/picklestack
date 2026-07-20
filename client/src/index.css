@@ -2097,6 +2097,15 @@ h1, h2, h3, h4, h5, h6 {
   background: rgba(var(--color-text-rgb, 0, 0, 0), 0.03);
 }
 
+.court-card__team--clickable {
+  cursor: pointer;
+}
+
+.court-card__team--clickable:hover {
+  border-color: var(--color-success, #84C341);
+  background: rgba(132, 195, 65, 0.08);
+}
+
 .court-card__team--selected {
   border-color: var(--color-success);
   background: rgba(132, 195, 65, 0.08);
