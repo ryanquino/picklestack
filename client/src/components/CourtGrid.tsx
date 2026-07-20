@@ -287,12 +287,16 @@ function CourtCard({
                         <div className="court-card__player-name-group">
                           <span
                             className="court-card__player-name"
-                            onClick={() => onPlayerClick?.(player.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onPlayerClick?.(player.id);
+                            }}
                             role={onPlayerClick ? 'button' : undefined}
                             tabIndex={onPlayerClick ? 0 : undefined}
                             onKeyDown={(e) => {
                               if (onPlayerClick && (e.key === 'Enter' || e.key === ' ')) {
                                 e.preventDefault();
+                                e.stopPropagation();
                                 onPlayerClick(player.id);
                               }
                             }}
@@ -315,7 +319,10 @@ function CourtCard({
                           )}
                           <button
                             className="replace-icon-btn"
-                            onClick={() => handleReplacePlayer(player.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReplacePlayer(player.id);
+                            }}
                             aria-label={`Replace player ${player.name}`}
                             disabled={loading}
                             title="Replace player"
@@ -362,12 +369,16 @@ function CourtCard({
                         <div className="court-card__player-name-group">
                           <span
                             className="court-card__player-name"
-                            onClick={() => onPlayerClick?.(player.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onPlayerClick?.(player.id);
+                            }}
                             role={onPlayerClick ? 'button' : undefined}
                             tabIndex={onPlayerClick ? 0 : undefined}
                             onKeyDown={(e) => {
                               if (onPlayerClick && (e.key === 'Enter' || e.key === ' ')) {
                                 e.preventDefault();
+                                e.stopPropagation();
                                 onPlayerClick(player.id);
                               }
                             }}
@@ -390,7 +401,10 @@ function CourtCard({
                           )}
                           <button
                             className="replace-icon-btn"
-                            onClick={() => handleReplacePlayer(player.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReplacePlayer(player.id);
+                            }}
                             aria-label={`Replace player ${player.name}`}
                             disabled={loading}
                             title="Replace player"
@@ -609,19 +623,10 @@ function CourtGrid({
   }
 
   function handleMatchCompleted() {
-    const completedCourt = dialogCourtNumber;
     setDialogCourtNumber(null);
+    setDialogWinner(null);
     if (onMatchCompleted) {
       onMatchCompleted();
-    }
-    // Scroll to the completed court card after a brief delay for state to update
-    if (completedCourt !== null) {
-      setTimeout(() => {
-        const courtElement = document.querySelector(`[data-court="${completedCourt}"]`);
-        if (courtElement) {
-          courtElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 300);
     }
   }
 
