@@ -385,6 +385,7 @@ export interface ClubStandings {
   losses: number;
   matchesPlayed: number;
   winRate: number;
+  pointDifferential: number;
   members: ClubMember[];
 }
 
@@ -415,4 +416,44 @@ export interface ClubRaidSchedule {
 export interface ClubRaidMatchRound {
   round: number;
   matches: ClubRaidMatch[];
+}
+
+/**
+ * Fair play-order for Club Raid. Matches are grouped by round, then by the
+ * club-pairing block (e.g. A vs B, C vs D), then packed into waves across the
+ * courts allocated to that block. The ordering maximizes equal rest: each
+ * player appears in as few consecutive waves as possible, and the unavoidable
+ * "double" player (who plays twice in one round) is pushed to the first and
+ * last waves so their idle gap is maximized.
+ */
+export interface ClubRaidPlayMatch {
+  matchId: string;                 // ClubRaidMatch id
+  clubAId: string;
+  clubBId: string;
+  players: [string, string, string, string]; // A1, A2, B1, B2
+  isDouble: boolean;               // true if one of these players plays twice this round
+  wave: number;                    // 0-based wave index within the block
+  courtSlot: number;               // 0-based relative court slot within the block
+}
+
+export interface ClubRaidPlayBlock {
+  clubAId: string;
+  clubBId: string;
+  numWaves: number;
+  courtsPerBlock: number;
+  doublePlayerId: string | null;
+  matches: ClubRaidPlayMatch[];
+}
+
+export interface ClubRaidPlayRound {
+  round: number;
+  numWaves: number;
+  blocks: ClubRaidPlayBlock[];
+}
+
+export interface ClubRaidPlayOrder {
+  courtCount: number;
+  rounds: ClubRaidPlayRound[];
+  /** Per-player average rest (waves between appearances) across the event. */
+  restByPlayer: Record<string, number>;
 }

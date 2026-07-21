@@ -444,7 +444,7 @@ function PlayerView() {
   }
 
   // Active session
-  const { session, queue, activeMatches, playerStats, achievements, totalCompletedMatches, waitEstimates, diversity, highlights } = state.data;
+  const { session, queue, activeMatches, playerStats, achievements, totalCompletedMatches, waitEstimates, diversity, highlights, completedMatches } = state.data;
   const nextMatchPlayerIds: string[] = (state.data as any).nextMatchPlayerIds ?? [];
   const nextMatchSet = new Set(nextMatchPlayerIds);
   const gameMode = session.gameMode || 'doubles';
@@ -822,6 +822,48 @@ function PlayerView() {
       {playerStats.length > 0 && (
         <section aria-label="Leaderboard" className="player-view__leaderboard">
           <LeaderboardCard playerStats={playerStats} />
+        </section>
+      )}
+
+      {/* Match Log — completed matches */}
+      {completedMatches && completedMatches.length > 0 && (
+        <section aria-label="Match log" className="player-view__match-log">
+          <h2>Match Log</h2>
+          <div className="card">
+            <table className="leaderboard-card__table">
+              <thead>
+                <tr>
+                  <th scope="col" className="leaderboard-card__th">#</th>
+                  <th scope="col" className="leaderboard-card__th">Court</th>
+                  <th scope="col" className="leaderboard-card__th">Teams</th>
+                  <th scope="col" className="leaderboard-card__th">Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {completedMatches.map((match, index) => {
+                  const midpoint = Math.ceil(match.players.length / 2);
+                  const team1 = match.players.slice(0, midpoint);
+                  const team2 = match.players.slice(midpoint);
+                  return (
+                    <tr key={match.id} className="leaderboard-card__row">
+                      <td className="leaderboard-card__cell leaderboard-card__cell--rank">{index + 1}</td>
+                      <td className="leaderboard-card__cell">{match.courtNumber}</td>
+                      <td className="leaderboard-card__cell">
+                        <span style={match.winningTeam === 1 ? { color: 'var(--color-success)', fontWeight: 600 } : undefined}>{team1.join(', ')}</span>
+                        {' vs '}
+                        <span style={match.winningTeam === 2 ? { color: 'var(--color-success)', fontWeight: 600 } : undefined}>{team2.join(', ')}</span>
+                      </td>
+                      <td className="leaderboard-card__cell">
+                        {match.team1Score !== null && match.team2Score !== null
+                          ? `${match.team1Score}-${match.team2Score}`
+                          : match.winningTeam ? `Team ${match.winningTeam} won` : '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
       <ScrollToTopButton />

@@ -33,8 +33,8 @@ function MatchCompleteDialog({
   onClose,
   onComplete,
 }: MatchCompleteDialogProps) {
-  const [team1Score, setTeam1Score] = useState<string>('');
-  const [team2Score, setTeam2Score] = useState<string>('');
+  const [team1Score, setTeam1Score] = useState<string>(initialWinner === 'team1' ? '11' : initialWinner === 'team2' ? '0' : '');
+  const [team2Score, setTeam2Score] = useState<string>(initialWinner === 'team2' ? '11' : initialWinner === 'team1' ? '0' : '');
   const [selectedWinner, setSelectedWinner] = useState<'team1' | 'team2' | null>(initialWinner ?? null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -97,23 +97,6 @@ function MatchCompleteDialog({
     return () => {
       document.body.style.overflow = originalOverflow;
     };
-  }, []);
-
-  // When opened with a pre-selected winner (e.g. clicking a team on the court
-  // card), default the score to 11-0 in favor of that team.
-  useEffect(() => {
-    if (initialWinner) {
-      setSelectedWinner(initialWinner);
-      if (initialWinner === 'team1') {
-        setTeam1Score('11');
-        setTeam2Score('0');
-      } else {
-        setTeam1Score('0');
-        setTeam2Score('11');
-      }
-    }
-    // Run once on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-determine winner from scores

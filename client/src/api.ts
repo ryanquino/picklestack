@@ -493,7 +493,7 @@ export function updateTournamentMatch(
 // Club Raid API
 // ============================================================
 
-import type { Club, ClubMember, ClubRaidMatch, ClubStandings } from './types';
+import type { Club, ClubMember, ClubRaidMatch, ClubStandings, ClubRaidPlayOrder } from './types';
 
 /** Create clubs for a session */
 export function createClubRaidClubs(
@@ -562,8 +562,8 @@ export function addClubRaidRound(
   });
 }
 
-/** Get round-robin schedule */
-export function getClubRaidSchedule(sessionId: string): Promise<{ matches: ClubRaidMatch[] }> {
+/** Get round-robin schedule (includes a fair computed playOrder) */
+export function getClubRaidSchedule(sessionId: string): Promise<{ matches: ClubRaidMatch[]; playOrder: ClubRaidPlayOrder }> {
   return request(`/sessions/${sessionId}/club-raid/schedule`);
 }
 
@@ -572,11 +572,11 @@ export function getClubRaidStandings(sessionId: string): Promise<{ standings: Cl
   return request(`/sessions/${sessionId}/club-raid/standings`);
 }
 
-/** Start a club raid match */
+/** Start a club raid match on the next available court. */
 export function startClubRaidMatch(
   sessionId: string,
   clubRaidMatchId: string
-): Promise<{ match: { id: string }; clubRaidMatchId: string }> {
+): Promise<{ match: { id: string }; clubRaidMatchId: string; courtNumber: number }> {
   return request(`/sessions/${sessionId}/club-raid/schedule/${clubRaidMatchId}/start`, {
     method: 'POST',
   });

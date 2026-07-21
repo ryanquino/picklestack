@@ -334,6 +334,7 @@ export interface ClubStandings {
   losses: number;
   matchesPlayed: number;
   winRate: number;
+  pointDifferential: number;
   members: ClubMember[];
 }
 
@@ -355,5 +356,39 @@ export interface ClubRaidMatch {
   matchId: string | null;
   status: 'scheduled' | 'active' | 'completed';
   winnerClubId: string | null;
+  team1Score: number | null;
+  team2Score: number | null;
   createdAt: string;
+}
+
+/** Fair play-order types for Club Raid (computed server-side). */
+export interface ClubRaidPlayMatch {
+  matchId: string;
+  clubAId: string;
+  clubBId: string;
+  players: [string, string, string, string];
+  isDouble: boolean;
+  wave: number;
+  courtSlot: number;
+}
+
+export interface ClubRaidPlayBlock {
+  clubAId: string;
+  clubBId: string;
+  numWaves: number;
+  courtsPerBlock: number;
+  doublePlayerId: string | null;
+  matches: ClubRaidPlayMatch[];
+}
+
+export interface ClubRaidPlayRound {
+  round: number;
+  numWaves: number;
+  blocks: ClubRaidPlayBlock[];
+}
+
+export interface ClubRaidPlayOrder {
+  courtCount: number;
+  rounds: ClubRaidPlayRound[];
+  restByPlayer: Record<string, number>;
 }

@@ -26,7 +26,7 @@ function CreateSession() {
   const [gameMode, setGameMode] = useState<GameMode>('doubles');
   const [matchingMode, setMatchingMode] = useState<MatchingMode>('casual');
   const [sessionDurationHours, setSessionDurationHours] = useState(4);
-  const [clubRaidConfig, setClubRaidConfig] = useState({ clubCount: 3, clubSize: 4 });
+  const [clubRaidConfig, setClubRaidConfig] = useState({ clubCount: 4, clubSize: 10 });
 
   // Player Check-In
   const [pendingPlayers, setPendingPlayers] = useState<PendingPlayer[]>([]);
@@ -542,7 +542,7 @@ function CreateSession() {
                 {([
                   { value: 'casual', label: 'Casual', badge: null, desc: 'Every player faces a fresh opponent each round. Perfect for social sessions where variety and fun matter more than competition.' },
                   { value: 'comeback', label: 'Comeback', badge: null, desc: 'Winners face winners, losers face losers. After the first round, the queue splits into two — everyone gets a fair shot at a comeback.' },
-                  { value: 'club_raid', label: 'Club Raid', badge: 'COMING SOON', desc: 'Multiple clubs compete in round-robin matches. Always cross-club play — you never face your own club members. Great for team rivalries!', disabled: true },
+                  { value: 'club_raid', label: 'Club Raid', badge: null, desc: 'Multiple clubs compete in round-robin matches. Always cross-club play — you never face your own club members. Great for team rivalries!' },
                   { value: 'balanced', label: 'Smart', badge: 'COMING SOON', desc: 'Equal court time for everyone with skill-balanced teams. The algorithm ensures fair play while keeping matches competitive. Best for most open play sessions.', disabled: true },
                   { value: 'competitive', label: 'Competitive', badge: 'COMING SOON', desc: 'Skill rating drives all matchups. Players are grouped by ability for the tightest possible games. Repeat opponents may occur.', disabled: true },
                 ] as const).map((option) => (
@@ -614,7 +614,7 @@ function CreateSession() {
                     min={2}
                     max={6}
                     value={clubRaidConfig.clubCount}
-                    onChange={(e) => setClubRaidConfig(prev => ({ ...prev, clubCount: parseInt(e.target.value) || 3 }))}
+                    onChange={(e) => setClubRaidConfig(prev => ({ ...prev, clubCount: parseInt(e.target.value) || 4, clubSize: 10 }))}
                     style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--color-border)', borderRadius: '6px', fontSize: '0.9rem' }}
                   />
                 </div>
@@ -624,9 +624,9 @@ function CreateSession() {
                     id="clubSize"
                     type="number"
                     min={2}
-                    max={6}
+                    max={15}
                     value={clubRaidConfig.clubSize}
-                    onChange={(e) => setClubRaidConfig(prev => ({ ...prev, clubSize: parseInt(e.target.value) || 4 }))}
+                    onChange={(e) => setClubRaidConfig(prev => ({ ...prev, clubSize: parseInt(e.target.value) || 10 }))}
                     style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--color-border)', borderRadius: '6px', fontSize: '0.9rem' }}
                   />
                 </div>
@@ -825,7 +825,7 @@ function CreateSession() {
                       </span>
                     )
                   ) : (
-                    gameMode === 'doubles' ? (
+                    gameMode === 'doubles' && matchingMode !== 'club_raid' ? (
                       pairConfirmPlayerId === player.localId ? (
                         // Confirmation: "Pair | Cancel"
                         <span className="create-session__status-badge" style={{ gap: '0.3rem', color: 'var(--color-success)', background: 'rgba(34, 197, 94, 0.08)', border: '1px solid var(--color-success)' }}>
@@ -1144,7 +1144,7 @@ function CreateSession() {
           })()}
 
           {/* Pair selected players button */}
-          {gameMode === 'doubles' && pairSelection.length === 2 && (
+          {gameMode === 'doubles' && matchingMode !== 'club_raid' && pairSelection.length === 2 && (
             <button
               type="button"
               onClick={handleCreatePair}
@@ -1166,7 +1166,7 @@ function CreateSession() {
           )}
 
           {/* Pending pairs list */}
-          {pendingPairs.length > 0 && (
+          {matchingMode !== 'club_raid' && pendingPairs.length > 0 && (
             <div style={{ marginTop: '1rem' }}>
               <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.9rem', color: '#374151' }}>
                 Fixed Pairs ({pendingPairs.length})

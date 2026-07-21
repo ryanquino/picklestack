@@ -13,7 +13,6 @@ import * as ratingService from './services/ratingService';
 import * as fixedPairService from './services/fixedPairService';
 import { computeSessionDiversity } from './services/diversityService';
 import { computeWaitEstimates } from './services/queueEstimatorService';
-import { computePaceMetrics } from './services/paceService';
 import { computeMatchQuality, getSessionQualityMetrics } from './services/qualityScorerService';
 import * as mlpTournament from './services/mlpTournamentService';
 import * as repo from './repository';
@@ -379,7 +378,6 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response, next: NextFunc
       waitEstimates[entry.playerId] = entry.estimatedMinutes;
     }
 
-    const paceMetrics = computePaceMetrics(sessionId);
     const qualityMetrics = getSessionQualityMetrics(sessionId);
 
     // Compute bench players (in session but not in queue and not in active match)
@@ -436,7 +434,6 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response, next: NextFunc
       nextMatchPlayerIds: courtService.previewNextMatch(sessionId),
       diversity,
       waitEstimates,
-      paceMetrics,
       qualityMetrics,
       ...(session.status === 'ended' ? {
         summary: {
@@ -572,7 +569,7 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
       startedAt: match.started_at,
     }));
 
-    // Include completed match log for ended sessions
+    // Include completed match log for all sessions (active or ended)
     let completedMatches: Array<{
       id: string;
       courtNumber: number;
@@ -584,7 +581,7 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
       completedAt: string | null;
     }> = [];
 
-    if (session.status === 'ended') {
+    {
       const allMatches = getMatchesBySession(sessionId);
       const resultRows = getMatchResultsBySession(sessionId);
       const resultByMatchId = new Map(resultRows.map(r => [r.match_id, r]));
@@ -661,6 +658,11 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
         (session.gameMode || 'doubles') as 'doubles' | 'singles',
         (session.matchingMode || 'balanced') as 'casual' | 'balanced' | 'competitive' | 'queue'
       ),
+      ...(session.matchingMode === 'club_raid' ? {
+        clubRaid: {
+          players: getPlayersBySession(sessionId).map(p => ({ id: p.id, name: p.name })),
+        },
+      } : {}),
     });
   } catch (err) {
     next(err);
@@ -947,6 +949,32 @@ app.post('/api/sessions/:sessionId/courts/:courtNumber/complete', (req: Request,
     const activeMatch = getActiveMatchByCourt(sessionId, courtNumber);
 
     courtService.completeMatch(sessionId, courtNumber, { winningTeam, skip, team1Score, team2Score });
+
+    // If this is a club raid match, update the club_raid_matches record
+    if (activeMatch) {
+      try {
+        const cramRows = repo.getClubRaidMatchesBySession(sessionId);
+        const cramMatch = cramRows.find(r => r.match_id === activeMatch.id);
+        if (cramMatch && cramMatch.status !== 'completed') {
+          const playerIds: string[] = JSON.parse(activeMatch.player_ids);
+          let derivedWinningTeam = winningTeam;
+          // Derive winner from scores when no explicit winning team was sent
+          if (!derivedWinningTeam && team1Score != null && team2Score != null) {
+            derivedWinningTeam = team1Score >= team2Score ? 'team1' : 'team2';
+          }
+          const winningPlayerIds = derivedWinningTeam === 'team1' ? playerIds.slice(0, 2) : playerIds.slice(2, 4);
+          const clubAPlayers = new Set([cramMatch.club_a_player_1, cramMatch.club_a_player_2].filter(Boolean));
+          const clubAWinners = winningPlayerIds.filter(pid => clubAPlayers.has(pid)).length;
+          const winnerClubId = clubAWinners > 0 ? cramMatch.club_a_id : cramMatch.club_b_id;
+          repo.updateClubRaidMatch(cramMatch.id, {
+            status: 'completed',
+            winner_club_id: winnerClubId,
+          });
+        }
+      } catch (clubRaidErr) {
+        console.error('Failed to update club raid match result:', clubRaidErr);
+      }
+    }
 
     // Compute match quality score (non-blocking — errors are logged but don't prevent response)
     if (activeMatch) {
@@ -1976,6 +2004,39 @@ app.post('/api/sessions/:sessionId/tournament/start', (req: Request, res: Respon
 import * as clubRaidService from './services/clubRaidService';
 
 /**
+ * TEMPORARY DEBUG ENDPOINT
+ * GET /api/debug/live-sessions — List current live (active) sessions so the
+ * organizer can jump straight into any session's Organizer Dashboard.
+ * Query params:
+ *   activeOnly (default "true") — set to "false" to also include ended sessions.
+ * Returns, for each session: id, name, status, matchingMode, courtCount,
+ * createdAt, updatedAt, and ready-to-use dashboardUrl / liveUrl.
+ * TODO: remove this endpoint before shipping.
+ */
+app.get('/api/debug/live-sessions', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const activeOnly = req.query.activeOnly !== 'false';
+    const sessions = repo.listSessions(activeOnly);
+    res.json({
+      count: sessions.length,
+      sessions: sessions.map((s) => ({
+        id: s.id,
+        name: s.name,
+        status: s.status,
+        matchingMode: s.matching_mode,
+        courtCount: s.court_count,
+        createdAt: s.created_at,
+        updatedAt: s.updated_at,
+        dashboardUrl: `/session/${s.id}`,
+        liveUrl: `/live/${s.id}`,
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * POST /api/sessions/:sessionId/club-raid/clubs — Create clubs for a session
  */
 app.post('/api/sessions/:sessionId/club-raid/clubs', (req: Request, res: Response, next: NextFunction) => {
@@ -2108,14 +2169,22 @@ app.post('/api/sessions/:sessionId/club-raid/auto-assign', (req: Request, res: R
     // Shuffle players for random assignment
     const shuffled = [...players].sort(() => Math.random() - 0.5);
 
+    // Track local member counts (DB writes don't update in-memory club.members)
+    const memberCounts = new Map<string, number>();
+    for (const club of freshClubs) {
+      memberCounts.set(club.id, 0);
+    }
+
     // Assign players round-robin to clubs
     for (let i = 0; i < shuffled.length; i++) {
       const clubIndex = i % freshClubs.length;
       const club = freshClubs[clubIndex];
 
-      // Check if club is full
-      if (club.members.length < config.clubSize) {
+      // Check if club is full using local counter
+      const currentCount = memberCounts.get(club.id) ?? 0;
+      if (currentCount < config.clubSize) {
         clubRaidService.addPlayerToClub(club.id, shuffled[i].id);
+        memberCounts.set(club.id, currentCount + 1);
       }
     }
 
@@ -2183,6 +2252,16 @@ app.get('/api/sessions/:sessionId/club-raid/schedule', (req: Request, res: Respo
         const p = repo.getPlayerById(id);
         return p?.name ?? null;
       };
+      // Fetch score from match_results if match is completed
+      let team1Score: number | null = null;
+      let team2Score: number | null = null;
+      if (m.match_id) {
+        const result = repo.getMatchResultByMatchId(m.match_id);
+        if (result) {
+          team1Score = result.team1_score;
+          team2Score = result.team2_score;
+        }
+      }
       return {
         id: m.id,
         sessionId: m.session_id,
@@ -2200,10 +2279,32 @@ app.get('/api/sessions/:sessionId/club-raid/schedule', (req: Request, res: Respo
         matchId: m.match_id,
         status: m.status,
         winnerClubId: m.winner_club_id,
+        team1Score,
+        team2Score,
         createdAt: m.created_at,
       };
     });
-    res.json({ matches });
+    res.json({
+      matches,
+      playOrder: clubRaidService.computeClubRaidPlayOrder(
+        rows.map((m) => ({
+          id: m.id,
+          sessionId: m.session_id,
+          round: m.round,
+          clubAId: m.club_a_id,
+          clubBId: m.club_b_id,
+          clubAPlayer1: m.club_a_player_1,
+          clubAPlayer2: m.club_a_player_2,
+          clubBPlayer1: m.club_b_player_1,
+          clubBPlayer2: m.club_b_player_2,
+          matchId: m.match_id,
+          status: m.status as 'scheduled' | 'active' | 'completed',
+          winnerClubId: m.winner_club_id,
+          createdAt: m.created_at,
+        })),
+        session.court_count,
+      ),
+    });
   } catch (err) {
     next(err);
   }
@@ -2227,6 +2328,8 @@ app.get('/api/sessions/:sessionId/club-raid/standings', (req: Request, res: Resp
 
 /**
  * POST /api/sessions/:sessionId/club-raid/schedule/:matchId/start — Start a club raid match
+ * Body (optional): { courtNumber?: number } — the 1-based court to start on. When
+ * omitted, the first available court is used (backwards-compatible behaviour).
  */
 app.post('/api/sessions/:sessionId/club-raid/schedule/:matchId/start', (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -2238,6 +2341,8 @@ app.post('/api/sessions/:sessionId/club-raid/schedule/:matchId/start', (req: Req
 
     const scheduleMatch = repo.getClubRaidMatchesBySession(sessionId).find(m => m.id === clubRaidMatchId);
     if (!scheduleMatch) throw new NotFoundError('Club raid match not found');
+    if (scheduleMatch.status === 'active') throw new ValidationError('This match is already live', ['matchId']);
+    if (scheduleMatch.status === 'completed') throw new ValidationError('This match is already completed', ['matchId']);
 
     // Use pre-assigned players from schedule generation
     const teamA = [scheduleMatch.club_a_player_1, scheduleMatch.club_a_player_2].filter(Boolean) as string[];
@@ -2247,15 +2352,29 @@ app.post('/api/sessions/:sessionId/club-raid/schedule/:matchId/start', (req: Req
       throw new ValidationError('This match is missing player assignments. Regenerate the schedule.', ['matchId']);
     }
 
-    // Find an available court
+    // Determine which court to use.
     const courts = courtService.getCourts(sessionId);
-    const availableCourt = courts.find(c => c.status === 'available');
-    if (!availableCourt) {
-      throw new ValidationError('No courts available to start a match', ['courtNumber']);
+    const requested = req.body?.courtNumber != null ? Number(req.body.courtNumber) : NaN;
+    let courtNumber: number;
+    if (!Number.isNaN(requested)) {
+      if (requested < 1 || requested > session.court_count) {
+        throw new ValidationError(`Court number must be between 1 and ${session.court_count}`, ['courtNumber']);
+      }
+      const target = courts.find(c => c.courtNumber === requested);
+      if (target && target.status !== 'available') {
+        throw new ValidationError(`Court ${requested} is not available`, ['courtNumber']);
+      }
+      courtNumber = requested;
+    } else {
+      const availableCourt = courts.find(c => c.status === 'available');
+      if (!availableCourt) {
+        throw new ValidationError('No courts available to start a match', ['courtNumber']);
+      }
+      courtNumber = availableCourt.courtNumber;
     }
 
     // Create the match using startMatchManual to bypass club_raid queue pairing
-    const match = courtService.startMatchManual(sessionId, availableCourt.courtNumber, [...teamA, ...teamB]);
+    const match = courtService.startMatchManual(sessionId, courtNumber, [...teamA, ...teamB]);
 
     // Link to club raid match
     repo.updateClubRaidMatch(clubRaidMatchId, {
@@ -2263,7 +2382,7 @@ app.post('/api/sessions/:sessionId/club-raid/schedule/:matchId/start', (req: Req
       status: 'active',
     });
 
-    res.status(201).json({ match, clubRaidMatchId });
+    res.status(201).json({ match, clubRaidMatchId, courtNumber });
   } catch (err) {
     next(err);
   }

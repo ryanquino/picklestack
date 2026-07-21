@@ -335,6 +335,23 @@ export function getDb(): Database.Database {
     }
   }
 
+  // Persistent per-player fairness history for Club Raid. Survives "+ Add Round"
+  // but is cleared on a full "Regenerate Schedule" (which calls delete). Feeds
+  // the in-memory fairness Maps so the scheduler remembers past extra appearances,
+  // partners, and opponents across rounds within a session.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS club_raid_player_history (
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      player_id TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      games_played INTEGER NOT NULL DEFAULT 0,
+      extra_appearances INTEGER NOT NULL DEFAULT 0,
+      partner_counts TEXT NOT NULL DEFAULT '{}',
+      opponent_counts TEXT NOT NULL DEFAULT '{}',
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (session_id, player_id)
+    )
+  `);
+
   return db;
 }
 

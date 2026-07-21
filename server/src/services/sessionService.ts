@@ -4,6 +4,7 @@ import { ValidationError, NotFoundError } from '../errors';
 import * as repository from '../repository';
 import { SessionRow } from '../repository';
 import { dissolveAllPairs } from './fixedPairService';
+import { createClubs, getClubs } from './clubRaidService';
 
 /**
  * Validates session creation inputs.
@@ -252,6 +253,14 @@ export function updateSessionSettings(sessionId: string, settings: SessionSettin
     club_raid_config: settings.clubRaidConfig ? JSON.stringify(settings.clubRaidConfig) : null,
     updated_at: now,
   });
+
+  // Auto-create empty clubs when switching to club_raid mode
+  if (settings.matchingMode === 'club_raid' && settings.clubRaidConfig) {
+    const existingClubs = getClubs(sessionId);
+    if (existingClubs.length === 0) {
+      createClubs(sessionId, settings.clubRaidConfig);
+    }
+  }
 }
 
 /**
@@ -275,5 +284,6 @@ export function getSessionSettings(sessionId: string): SessionSettings {
     matchingMode: row.matching_mode as MatchingMode,
     sessionDurationHours: row.session_duration_hours,
     mlpConfig: row.mlp_config ? JSON.parse(row.mlp_config) : undefined,
+    clubRaidConfig: row.club_raid_config ? JSON.parse(row.club_raid_config) : undefined,
   };
 }

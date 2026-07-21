@@ -55,14 +55,6 @@ interface PlayerStatsData {
   gender?: string | null;
 }
 
-interface PaceMetrics {
-  averageMatchDurationSeconds: number | null;
-  pacingProjection: number | null;
-  remainingMinutes: number;
-  warningMessage: string | null;
-  displayMessage: string;
-}
-
 interface SessionQualityMetrics {
   sessionQualityScore: number | null;
   recentMatchRatings: Array<{ courtNumber: number; rating: number }>;
@@ -116,7 +108,6 @@ interface SessionState {
     startedAt: string;
     completedAt: string | null;
   }[];
-  paceMetrics?: PaceMetrics;
   qualityMetrics?: SessionQualityMetrics;
   diversity?: Record<string, number>;
   waitEstimates?: Record<string, number | null>;
@@ -145,15 +136,23 @@ function OrganizerDashboard() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showSharePanel, setShowSharePanel] = useState(false);
   const [shareTab, setShareTab] = useState<'join' | 'watch'>('join');
+  const selfCheckInDisabled = state?.session?.gameMode === 'mlp' || state?.session?.matchingMode === 'club_raid';
   const [copiedJoin, setCopiedJoin] = useState(false);
   const [fixedPairs, setFixedPairs] = useState<FixedPair[]>([]);
   const [manualMatchCourt, setManualMatchCourt] = useState<number | null>(null);
   const previousAchievementsRef = useRef<Achievement[]>([]);
+  const [scheduleRefreshToken, setScheduleRefreshToken] = useState(0);
 
   const loadSession = useCallback(async () => {
     if (!sessionId) return;
     try {
-      const data = await getSession(sessionId);
+      // Fire the independent fetches in parallel so the dashboard repaints as
+      // fast as possible after a match completes.
+      const [data, achievementsData, fixedPairsData] = await Promise.all([
+        getSession(sessionId),
+        getSessionAchievements(sessionId).catch(() => [] as Achievement[]),
+        getFixedPairs(sessionId).catch(() => [] as FixedPair[]),
+      ]);
       const sessionState = data as unknown as SessionState;
       setState(sessionState);
       setError(null);
@@ -172,7 +171,7 @@ function OrganizerDashboard() {
         setPairingModeState(sessionState.session.pairingMode);
       }
 
-      // Load leaderboard if session is ended
+      // Load leaderboard if session is ended (only then is it relevant)
       if (sessionState.session.status === 'ended') {
         try {
           const lb = await getLeaderboard(sessionId) as LeaderboardEntry[];
@@ -183,48 +182,39 @@ function OrganizerDashboard() {
       }
 
       // Track achievement notifications
-      try {
-        const currentAchievements = await getSessionAchievements(sessionId) as Achievement[];
-        const prevAchievements = previousAchievementsRef.current;
+      const currentAchievements = achievementsData as Achievement[];
+      const prevAchievements = previousAchievementsRef.current;
 
-        if (prevAchievements.length > 0) {
-          // Find new achievements by comparing with previous
-          const newAchievements = currentAchievements.filter(
-            (curr) => !prevAchievements.some(
-              (prev) => prev.playerId === curr.playerId && prev.kind === curr.kind
-            )
+      if (prevAchievements.length > 0) {
+        // Find new achievements by comparing with previous
+        const newAchievements = currentAchievements.filter(
+          (curr) => !prevAchievements.some(
+            (prev) => prev.playerId === curr.playerId && prev.kind === curr.kind
+          )
+        );
+
+        if (newAchievements.length > 0) {
+          // Resolve player names from queue or active matches
+          const playerNameMap = new Map<string, string>();
+          sessionState.queue.forEach((q) => playerNameMap.set(q.playerId, q.playerName));
+          sessionState.activeMatches.forEach((m) =>
+            m.players.forEach((p) => playerNameMap.set(p.id, p.name))
           );
 
-          if (newAchievements.length > 0) {
-            // Resolve player names from queue or active matches
-            const playerNameMap = new Map<string, string>();
-            sessionState.queue.forEach((q) => playerNameMap.set(q.playerId, q.playerName));
-            sessionState.activeMatches.forEach((m) =>
-              m.players.forEach((p) => playerNameMap.set(p.id, p.name))
-            );
+          const newNotifications: AchievementNotificationItem[] = newAchievements.map((a) => ({
+            id: `${a.playerId}-${a.kind}-${Date.now()}`,
+            achievement: a,
+            playerName: playerNameMap.get(a.playerId) || 'Unknown Player',
+          }));
 
-            const newNotifications: AchievementNotificationItem[] = newAchievements.map((a) => ({
-              id: `${a.playerId}-${a.kind}-${Date.now()}`,
-              achievement: a,
-              playerName: playerNameMap.get(a.playerId) || 'Unknown Player',
-            }));
-
-            setNotifications((prev) => [...newNotifications, ...prev]);
-          }
+          setNotifications((prev) => [...newNotifications, ...prev]);
         }
-
-        previousAchievementsRef.current = currentAchievements;
-      } catch {
-        // Achievements endpoint may not be available
       }
 
-      // Fetch fixed pairs for the session
-      try {
-        const pairs = await getFixedPairs(sessionId);
-        setFixedPairs(pairs);
-      } catch {
-        // Fixed pairs endpoint may not be available
-      }
+      previousAchievementsRef.current = currentAchievements;
+
+      // Fixed pairs for the session
+      setFixedPairs(fixedPairsData as FixedPair[]);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to load session';
 
@@ -249,6 +239,7 @@ function OrganizerDashboard() {
     } finally {
       setLoading(false);
     }
+    setScheduleRefreshToken(t => t + 1);
   }, [sessionId]);
 
   useEffect(() => {
@@ -565,14 +556,16 @@ function OrganizerDashboard() {
               <div className="share-popup card" onClick={(e) => e.stopPropagation()}>
                 <div className="share-popup__header">
                   <div className="share-popup__tabs">
+                    {!selfCheckInDisabled && (
                     <button
                       className={`share-popup__tab${shareTab === 'join' ? ' share-popup__tab--active' : ''}`}
                       onClick={() => setShareTab('join')}
                     >
                       📱 Join
                     </button>
+                    )}
                     <button
-                      className={`share-popup__tab${shareTab === 'watch' ? ' share-popup__tab--active' : ''}`}
+                      className={`share-popup__tab${shareTab === 'watch' || (selfCheckInDisabled && shareTab === 'join') ? ' share-popup__tab--active' : ''}`}
                       onClick={() => setShareTab('watch')}
                     >
                       👁 Watch
@@ -587,7 +580,7 @@ function OrganizerDashboard() {
                   </button>
                 </div>
                 <div className="share-popup__body">
-                  {shareTab === 'join' ? (
+                  {shareTab === 'join' && !selfCheckInDisabled ? (
                     <>
                       <p className="share-popup__hint">Players scan to check in and join the queue</p>
                       <QRCodeDisplay url={`${window.location.origin}/join/${sessionId}`} />
@@ -664,6 +657,7 @@ function OrganizerDashboard() {
                   <ClubRaidPanel
                     sessionId={sessionId!}
                     players={(state.playerStats ?? []).map(p => ({ id: p.playerId, name: p.playerName }))}
+                    refreshToken={scheduleRefreshToken}
                     onScheduleGenerated={loadSession}
                   />
                 </ErrorBoundary>
@@ -674,7 +668,7 @@ function OrganizerDashboard() {
                 <HighlightsTicker highlights={state.highlights} />
               )}
 
-              {/* Queue second */}
+              {/* Queue second — hidden for Club Raid (scheduling is handled by the Club Raid panel) */}
               <ErrorBoundary sectionName="Queue">
               {state.session.matchingMode === 'comeback' ? (
                 <>
@@ -775,6 +769,7 @@ function OrganizerDashboard() {
                 })()}
                 </>
               ) : (
+                state.session.matchingMode !== 'club_raid' && (
                 <QueuePanel
                   queue={enrichedQueue}
                   sessionId={sessionId!}
@@ -793,6 +788,7 @@ function OrganizerDashboard() {
                   onStarRatingChange={handleStarRatingChange}
                   nextMatchPlayerIds={(state as any).nextMatchPlayerIds}
                 />
+                )
               )}
               </ErrorBoundary>
             </>
@@ -861,30 +857,6 @@ function OrganizerDashboard() {
               </ul>
             </section>
           )}
-
-          {/* Session Pace Card */}
-          <section className="organizer-dashboard__pace-card card" style={{ padding: 'var(--space-lg)' }} aria-label="Session Pace">
-            <h3>Session Pace</h3>
-            {!state.paceMetrics || state.paceMetrics.pacingProjection === null ? (
-              <p className="text-secondary">Not enough data yet</p>
-            ) : (
-              <>
-                {state.paceMetrics.averageMatchDurationSeconds != null && (
-                  <p>
-                    Avg match duration:{' '}
-                    <strong>
-                      {Math.floor(state.paceMetrics.averageMatchDurationSeconds / 60)}m{' '}
-                      {Math.round(state.paceMetrics.averageMatchDurationSeconds % 60)}s
-                    </strong>
-                  </p>
-                )}
-                <p>At current pace, each player will get ~{state.paceMetrics.pacingProjection} games</p>
-                {state.paceMetrics.warningMessage && (
-                  <p className="text-amber-500" role="alert">{state.paceMetrics.warningMessage}</p>
-                )}
-              </>
-            )}
-          </section>
 
           {/* Session Quality Card — hidden for now */}
           {/* <section className="organizer-dashboard__quality-card card" style={{ padding: 'var(--space-lg)' }} aria-label="Session Quality">

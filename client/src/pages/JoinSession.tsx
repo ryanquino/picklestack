@@ -36,6 +36,7 @@ function JoinSession() {
   const [sessionInfo, setSessionInfo] = useState<{
     name: string;
     gameMode: string;
+    matchingMode?: string;
     playerCount: number;
     status: string;
   } | null>(null);
@@ -112,6 +113,11 @@ function JoinSession() {
 
     Promise.all([getSessionJoinInfo(sessionId), getBenchPlayers(sessionId), getAllPlayers(sessionId)])
       .then(([info, bench, all]) => {
+        if (info.gameMode === 'mlp' || info.matchingMode === 'club_raid') {
+          setError('Self check-in is not available for this session format.');
+          setLoading(false);
+          return;
+        }
         setSessionInfo(info);
         setBenchPlayers(bench);
         setAllPlayers(all);

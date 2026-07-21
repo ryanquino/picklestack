@@ -10,6 +10,7 @@ import PlayerProfileCard from '../components/PlayerProfileCard';
 import LiveSessionHeader from '../components/LiveSessionHeader';
 import HighlightsTicker from '../components/HighlightsTicker';
 import Navbar from '../components/Navbar';
+import ClubRaidPanel from '../components/ClubRaidPanel';
 
 /** Live timer that updates every second, displays mm:ss */
 function LiveTimer({ startedAt }: { startedAt: string }) {
@@ -155,6 +156,7 @@ function LiveView() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const [state, setState] = useState<ViewState>({ kind: 'loading' });
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState(0);
 
   const fetchLiveData = useCallback(async () => {
     if (!sessionId) {
@@ -169,6 +171,7 @@ function LiveView() {
       } else {
         setState({ kind: 'active', data });
       }
+      setRefreshToken(t => t + 1);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Request failed';
       if (message.toLowerCase().includes('not found')) {
@@ -319,7 +322,7 @@ function LiveView() {
   }
 
   // Active session
-  const { session, queue, activeMatches, playerStats, achievements, totalCompletedMatches, waitEstimates, diversity } = state.data;
+  const { session, queue, activeMatches, playerStats, achievements, totalCompletedMatches, waitEstimates, diversity, completedMatches } = state.data;
   const nextMatchPlayerIds: string[] = (state.data as any).nextMatchPlayerIds ?? [];
   const nextMatchSet = new Set(nextMatchPlayerIds);
   const gameMode = session.gameMode || 'doubles';
@@ -466,7 +469,18 @@ function LiveView() {
         <HighlightsTicker highlights={(state.data as any).highlights} />
       )}
 
-      {/* Queue — full list, clickable names show profile */}
+      {/* Club Raid Panel — read-only in live view */}
+      {session.matchingMode === 'club_raid' && (state.data as any).clubRaid && (
+        <ClubRaidPanel
+          sessionId={sessionId || ''}
+          players={(state.data as any).clubRaid.players || []}
+          refreshToken={refreshToken}
+          readOnly
+        />
+      )}
+
+      {/* Queue — full list, clickable names show profile (hidden for club_raid) */}
+      {session.matchingMode !== 'club_raid' && (
       <section aria-label="Queue" className="live-view__queue">
         {matchingMode === 'comeback' ? (
           <>
@@ -635,6 +649,7 @@ function LiveView() {
           </>
         )}
       </section>
+      )}
 
       {/* Session Awards */}
       {(state.data as any).sessionAwards && (state.data as any).sessionAwards.length > 0 && (
@@ -645,6 +660,48 @@ function LiveView() {
       {playerStats.length > 0 && (
         <section aria-label="Session leaderboard" className="live-view__leaderboard">
           <LeaderboardCard playerStats={playerStats} />
+        </section>
+      )}
+
+      {/* Match Log — completed matches */}
+      {completedMatches && completedMatches.length > 0 && (
+        <section aria-label="Match log" className="live-view__match-log">
+          <h2>Match Log</h2>
+          <div className="card">
+            <table className="leaderboard-card__table">
+              <thead>
+                <tr>
+                  <th scope="col" className="leaderboard-card__th">#</th>
+                  <th scope="col" className="leaderboard-card__th">Court</th>
+                  <th scope="col" className="leaderboard-card__th">Teams</th>
+                  <th scope="col" className="leaderboard-card__th">Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {completedMatches.map((match, index) => {
+                  const midpoint = Math.ceil(match.players.length / 2);
+                  const team1 = match.players.slice(0, midpoint);
+                  const team2 = match.players.slice(midpoint);
+                  return (
+                    <tr key={match.id} className="leaderboard-card__row">
+                      <td className="leaderboard-card__cell leaderboard-card__cell--rank">{index + 1}</td>
+                      <td className="leaderboard-card__cell">{match.courtNumber}</td>
+                      <td className="leaderboard-card__cell">
+                        <span style={match.winningTeam === 1 ? { color: 'var(--color-success)', fontWeight: 600 } : undefined}>{team1.join(', ')}</span>
+                        {' vs '}
+                        <span style={match.winningTeam === 2 ? { color: 'var(--color-success)', fontWeight: 600 } : undefined}>{team2.join(', ')}</span>
+                      </td>
+                      <td className="leaderboard-card__cell">
+                        {match.team1Score !== null && match.team2Score !== null
+                          ? `${match.team1Score}-${match.team2Score}`
+                          : match.winningTeam ? `Team ${match.winningTeam} won` : '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
 

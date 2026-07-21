@@ -107,6 +107,15 @@ export function getSessionById(id: string): SessionRow | undefined {
   return db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as SessionRow | undefined;
 }
 
+// Temporary debug helper: list sessions. Pass `activeOnly=false` to include ended ones.
+export function listSessions(activeOnly = true): SessionRow[] {
+  const db = getDb();
+  const sql = activeOnly
+    ? `SELECT * FROM sessions WHERE status = 'active' ORDER BY updated_at DESC`
+    : `SELECT * FROM sessions ORDER BY updated_at DESC`;
+  return db.prepare(sql).all() as SessionRow[];
+}
+
 export function updateSession(id: string, updates: Partial<Pick<SessionRow, 'name' | 'status' | 'updated_at'>>): void {
   const db = getDb();
   const setClauses: string[] = [];
@@ -799,17 +808,63 @@ export function deleteClubRaidMatchesBySession(sessionId: string): void {
   db.prepare('DELETE FROM club_raid_matches WHERE session_id = ?').run(sessionId);
 }
 
-export function getClubStandings(sessionId: string): Array<{ club_id: string; wins: number; losses: number; matches_played: number }> {
+// ============================================================
+// Club Raid per-player fairness history
+// ============================================================
+export interface ClubRaidPlayerHistoryRow {
+  session_id: string;
+  player_id: string;
+  games_played: number;
+  extra_appearances: number;
+  partner_counts: string;
+  opponent_counts: string;
+  updated_at: string;
+}
+
+export function getClubRaidPlayerHistory(sessionId: string): ClubRaidPlayerHistoryRow[] {
+  const db = getDb();
+  return db.prepare(
+    'SELECT * FROM club_raid_player_history WHERE session_id = ?'
+  ).all(sessionId) as ClubRaidPlayerHistoryRow[];
+}
+
+// Replace the entire session's history (used after a schedule is generated so the
+// scheduler can accumulate across "+ Add Round" calls). Clears then inserts.
+export function replaceClubRaidPlayerHistory(sessionId: string, rows: ClubRaidPlayerHistoryRow[]): void {
+  const db = getDb();
+  const deleteStmt = db.prepare('DELETE FROM club_raid_player_history WHERE session_id = ?');
+  const insertStmt = db.prepare(`
+    INSERT INTO club_raid_player_history
+      (session_id, player_id, games_played, extra_appearances, partner_counts, opponent_counts, updated_at)
+    VALUES
+      (@session_id, @player_id, @games_played, @extra_appearances, @partner_counts, @opponent_counts, @updated_at)
+  `);
+  const tx = db.transaction(() => {
+    deleteStmt.run(sessionId);
+    for (const r of rows) insertStmt.run(r);
+  });
+  tx();
+}
+
+export function deleteClubRaidPlayerHistory(sessionId: string): void {
+  const db = getDb();
+  db.prepare('DELETE FROM club_raid_player_history WHERE session_id = ?').run(sessionId);
+}
+
+export function getClubStandings(sessionId: string): Array<{ club_id: string; wins: number; losses: number; matches_played: number; points_for: number; points_against: number }> {
   const db = getDb();
   return db.prepare(`
     SELECT
       c.id as club_id,
       COALESCE(SUM(CASE WHEN crm.winner_club_id = c.id THEN 1 ELSE 0 END), 0) as wins,
       COALESCE(SUM(CASE WHEN crm.winner_club_id IS NOT NULL AND crm.winner_club_id != c.id THEN 1 ELSE 0 END), 0) as losses,
-      COALESCE(SUM(CASE WHEN crm.status = 'completed' THEN 1 ELSE 0 END), 0) as matches_played
+      COALESCE(SUM(CASE WHEN crm.status = 'completed' THEN 1 ELSE 0 END), 0) as matches_played,
+      COALESCE(SUM(CASE WHEN c.id = crm.club_a_id THEN mr.team1_score ELSE mr.team2_score END), 0) as points_for,
+      COALESCE(SUM(CASE WHEN c.id = crm.club_a_id THEN mr.team2_score ELSE mr.team1_score END), 0) as points_against
     FROM clubs c
     LEFT JOIN club_raid_matches crm ON (c.id = crm.club_a_id OR c.id = crm.club_b_id) AND crm.session_id = c.session_id
+    LEFT JOIN match_results mr ON mr.match_id = crm.match_id
     WHERE c.session_id = ?
     GROUP BY c.id
-  `).all(sessionId) as Array<{ club_id: string; wins: number; losses: number; matches_played: number }>;
+  `).all(sessionId) as Array<{ club_id: string; wins: number; losses: number; matches_played: number; points_for: number; points_against: number }>;
 }
