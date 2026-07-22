@@ -12,6 +12,7 @@ import LiveSessionHeader from '../components/LiveSessionHeader';
 import HighlightsTicker from '../components/HighlightsTicker';
 import Navbar from '../components/Navbar';
 import ClubRaidPanel from '../components/ClubRaidPanel';
+import Footer from '../components/Footer';
 
 /** Live timer that updates every second, displays mm:ss */
 function LiveTimer({ startedAt }: { startedAt: string }) {
@@ -158,10 +159,11 @@ function LiveView() {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
 
-  const { data, isStale, isLoading, error, refresh } = useStaleWhileRevalidate(
-    sessionId ? () => getSessionLive(sessionId) as unknown as Promise<LiveResponse | null> : () => Promise.resolve(null),
-    { revalidateInterval: 5000, backgroundInterval: 30000 }
-  );
+  const { data, isStale, isLoading, error, refresh } = useStaleWhileRevalidate<LiveResponse>({
+    fetchFn: sessionId ? () => getSessionLive(sessionId) as unknown as Promise<LiveResponse | null> : () => Promise.resolve(null),
+    revalidateInterval: 5000,
+    backgroundInterval: 30000,
+  });
 
   if (isLoading && !data) {
     return (
@@ -350,15 +352,15 @@ function LiveView() {
       </section>
 
       {/* Highlights Ticker */}
-      {(state.data as any).highlights && (state.data as any).highlights.length > 0 && (
-        <HighlightsTicker highlights={(state.data as any).highlights} />
+      {(data as any).highlights && (data as any).highlights.length > 0 && (
+        <HighlightsTicker highlights={(data as any).highlights} />
       )}
 
       {/* Club Raid Panel — read-only in live view */}
-      {session.matchingMode === 'club_raid' && (state.data as any).clubRaid && (
+      {session.matchingMode === 'club_raid' && (data as any).clubRaid && (
         <ClubRaidPanel
           sessionId={sessionId || ''}
-          players={(state.data as any).clubRaid.players || []}
+          players={(data as any).clubRaid.players || []}
           refreshToken={refreshToken}
           readOnly
         />
@@ -537,8 +539,8 @@ function LiveView() {
       )}
 
       {/* Session Awards */}
-      {(state.data as any).sessionAwards && (state.data as any).sessionAwards.length > 0 && (
-        <SessionAwards awards={(state.data as any).sessionAwards} />
+      {(data as any).sessionAwards && (data as any).sessionAwards.length > 0 && (
+        <SessionAwards awards={(data as any).sessionAwards} />
       )}
 
       {/* Leaderboard at the bottom, scrollable */}
@@ -599,6 +601,7 @@ function LiveView() {
         />
       )}
       <ScrollToTopButton />
+      <Footer />
     </div>
   );
 }

@@ -4007,7 +4007,7 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-md) var(--space-md);
+  padding: var(--space-sm) var(--space-md);
   margin-bottom: var(--space-lg);
   border-bottom: 1px solid var(--glass-border);
   background: #fefefe;
@@ -4026,10 +4026,10 @@ textarea {
 }
 
 .navbar__logo {
-  height: 96px;
-  min-height: 96px;
+  height: 200px;
   width: auto;
   object-fit: contain;
+  margin: -40px 0;
 }
 
 .navbar__brand-text {
@@ -4101,6 +4101,113 @@ textarea {
 
 .navbar__link-icon {
   font-size: var(--text-base);
+}
+
+/* Hamburger button — hidden on desktop */
+.navbar__burger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 36px;
+  height: 36px;
+  padding: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.navbar__burger-line {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background: var(--color-text-primary);
+  border-radius: 2px;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.navbar__burger-line.open:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+.navbar__burger-line.open:nth-child(2) {
+  opacity: 0;
+}
+.navbar__burger-line.open:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+/* Mobile: hamburger visible, links hidden by default */
+@media (max-width: 767px) {
+  .navbar__burger {
+    display: flex;
+  }
+
+  .navbar__links {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    background: var(--color-bg);
+    border-bottom: 1px solid var(--color-border);
+    padding: var(--space-sm) var(--space-md);
+    gap: var(--space-xs);
+    z-index: 100;
+  }
+
+  .navbar__links--open {
+    display: flex;
+  }
+
+  .navbar__link {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .navbar {
+    position: relative;
+  }
+}
+
+/* ===========================
+   Component Classes: Footer
+   =========================== */
+
+.footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-md) var(--space-md);
+  margin-top: auto;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.footer__brand {
+  display: inline-flex;
+}
+
+.footer__logo {
+  height: 100px;
+  width: auto;
+  object-fit: contain;
+}
+
+.footer__copy {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+/* Make dashboard/view containers flex-column so footer sticks to bottom */
+.organizer-dashboard,
+.live-view,
+.player-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
 /* ===========================
@@ -6138,6 +6245,20 @@ select.create-session__input {
   }
 }
 
+@media (max-width: 768px) {
+  .navbar__logo {
+    height: 163px;
+    margin: -25px 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .navbar__logo {
+    height: 150px;
+    margin: -20px 0;
+  }
+}
+
 @media (max-width: 403px) {
   .navbar {
     padding: var(--space-sm) var(--space-sm);
@@ -6145,13 +6266,8 @@ select.create-session__input {
   }
 
   .navbar__logo {
-    height: 56px;
-    min-height: 56px;
-  }
-
-  .navbar__link {
-    font-size: 0.8rem;
-    padding: var(--space-xs) var(--space-sm);
+    height: 125px;
+    margin: -15px 0;
   }
 }
 
@@ -8994,7 +9110,8 @@ h2:has(+ .avatar-queue) {
 /* Landing page blog section */
 
 .landing__blog {
-  padding: var(--space-3xl) 0;
+  padding: var(--space-3xl) 0 var(--space-3xl) 0;
+  padding-bottom: 5rem;
   background: var(--color-bg);
 }
 

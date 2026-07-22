@@ -8,6 +8,7 @@ import LeaderboardCard from '../components/LeaderboardCard';
 import Navbar from '../components/Navbar';
 import SessionAwards from '../components/SessionAwards';
 import PlayerProfileCard from '../components/PlayerProfileCard';
+import Footer from '../components/Footer';
 
 /** Live timer that updates every second, displays mm:ss */
 function LiveTimer({ startedAt }: { startedAt: string }) {
@@ -286,7 +287,7 @@ function PlayerView() {
   useEffect(() => {
     if (!sessionId || !playerId) return;
 
-    const PLAYER_STORAGE_PREFIX = 'pickld_player_';
+    const PLAYER_STORAGE_PREFIX = 'picklstack_player_';
     const storageKey = `${PLAYER_STORAGE_PREFIX}${sessionId}`;
 
     async function checkBenchStatus() {
@@ -867,6 +868,7 @@ function PlayerView() {
         </section>
       )}
       <ScrollToTopButton />
+      <Footer />
 
       {/* Player profile modal */}
       {selectedProfilePlayerId && sessionId && (

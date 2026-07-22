@@ -5,7 +5,7 @@ import { STAR_RATING_LABELS } from '../types';
 import { getSessionJoinInfo, addPlayer, getBenchPlayers, joinQueue, getAllPlayers, createFixedPair } from '../api';
 import { useVisibilityPolling } from '../hooks/useVisibilityPolling';
 
-const PLAYER_STORAGE_PREFIX = 'pickld_player_';
+const PLAYER_STORAGE_PREFIX = 'picklstack_player_';
 
 function getPlayerStorageKey(sessionId: string): string {
   return `${PLAYER_STORAGE_PREFIX}${sessionId}`;

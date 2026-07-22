@@ -13,6 +13,7 @@ import SessionHeader from '../components/SessionHeader';
 import Navbar from '../components/Navbar';
 import Leaderboard from '../components/Leaderboard';
 import LeaderboardCard from '../components/LeaderboardCard';
+import Footer from '../components/Footer';
 import SessionAwards from '../components/SessionAwards';
 import QRCodeDisplay from '../components/QRCodeDisplay';
 import PlayerProfileCard from '../components/PlayerProfileCard';
@@ -993,6 +994,7 @@ function OrganizerDashboard() {
       )}
 
       <ScrollToTopButton />
+      <Footer />
     </div>
   );
 }

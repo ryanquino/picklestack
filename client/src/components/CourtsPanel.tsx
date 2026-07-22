@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import CourtGrid from './CourtGrid';
 import type { Court, PlayerStats, Achievement, HeadToHeadRecord, FixedPair } from '../types';
 
-const AUTO_START_KEY = 'pickld_auto_start';
+const AUTO_START_KEY = 'picklstack_auto_start';
 
 interface ActiveMatch {
   id: string;
