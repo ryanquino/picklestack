@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 interface Award {
   id: string;
   icon: string;
@@ -13,7 +15,7 @@ interface SessionAwardsProps {
   awards: Award[];
 }
 
-function SessionAwards({ awards }: SessionAwardsProps) {
+const SessionAwards = memo(function SessionAwards({ awards }: SessionAwardsProps) {
   if (awards.length === 0) return null;
 
   return (
@@ -37,6 +39,6 @@ function SessionAwards({ awards }: SessionAwardsProps) {
       </div>
     </section>
   );
-}
+});
 
 export default SessionAwards;

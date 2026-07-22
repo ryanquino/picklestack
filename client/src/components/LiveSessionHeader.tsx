@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 /**
  * LiveSessionHeader displays the session name with a "LIVE" badge (pulse animation),
  * date/time, active court count, and queued player count for the Live View page.
@@ -8,12 +10,14 @@ interface LiveSessionHeaderProps {
   sessionName: string;
   activeCourts: number;
   queuedPlayers: number;
+  dateTime?: string;
 }
 
-function LiveSessionHeader({
+const LiveSessionHeader = memo(function LiveSessionHeader({
   sessionName,
   activeCourts,
   queuedPlayers,
+  dateTime,
 }: LiveSessionHeaderProps) {
   return (
     <header className="session-header">
@@ -29,7 +33,7 @@ function LiveSessionHeader({
           </span>
         </div>
         <div className="session-header__meta">
-          <span className="session-header__datetime">{new Date().toLocaleString()}</span>
+          {dateTime && <span className="session-header__datetime">{dateTime}</span>}
         </div>
       </div>
 
@@ -51,6 +55,6 @@ function LiveSessionHeader({
       </div>
     </header>
   );
-}
+});
 
 export default LiveSessionHeader;

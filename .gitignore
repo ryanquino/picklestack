@@ -4,4 +4,6 @@ data/
 *.db
 *.db-wal
 *.db-shm
+*.log
 .env
+test-results.txt

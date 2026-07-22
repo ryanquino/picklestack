@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState, useMemo } from 'react';
 import { PlayerStats } from '../types';
 
 export interface LeaderboardCardEntry {
@@ -56,10 +56,10 @@ interface LeaderboardCardProps {
   startingRatings?: Map<string, number>;
 }
 
-function LeaderboardCard({ playerStats, startingRatings }: LeaderboardCardProps) {
+const LeaderboardCard = memo(function LeaderboardCard({ playerStats, startingRatings }: LeaderboardCardProps) {
   const [collapsed, setCollapsed] = useState(false);
 
-  const entries = buildLeaderboardCardEntries(playerStats, startingRatings);
+  const entries = useMemo(() => buildLeaderboardCardEntries(playerStats, startingRatings), [playerStats, startingRatings]);
 
   // Hide entirely when no players have completed a match
   if (entries.length === 0) {
@@ -119,6 +119,6 @@ function LeaderboardCard({ playerStats, startingRatings }: LeaderboardCardProps)
       )}
     </div>
   );
-}
+});
 
 export default LeaderboardCard;

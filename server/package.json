@@ -1,5 +1,5 @@
 {
-  "name": "pickld-server",
+  "name": "picklstack-server",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@types/multer": "^2.2.0",
     "better-sqlite3": "^11.7.0",
     "cors": "^2.8.5",
     "express": "^4.21.0",
@@ -22,6 +21,7 @@
     "@types/better-sqlite3": "^7.6.12",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
+    "@types/multer": "^2.2.0",
     "@types/node": "^22.10.0",
     "@types/supertest": "^7.2.0",
     "@types/uuid": "^10.0.0",

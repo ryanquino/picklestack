@@ -1,32 +1,36 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import CreateSession from './pages/CreateSession';
-import LandingPage from './pages/LandingPage';
-import OrganizerDashboard from './pages/OrganizerDashboard';
-import LiveView from './pages/LiveView';
-import JoinSession from './pages/JoinSession';
-import PlayerView from './pages/PlayerView';
-import NotFound from './pages/NotFound';
-import BlogList from './pages/BlogList';
-import BlogPostPage from './pages/BlogPost';
-import BlogEditor from './pages/BlogEditor';
 import LayoutShell from './components/LayoutShell';
+
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const CreateSession = lazy(() => import('./pages/CreateSession'));
+const OrganizerDashboard = lazy(() => import('./pages/OrganizerDashboard'));
+const LiveView = lazy(() => import('./pages/LiveView'));
+const JoinSession = lazy(() => import('./pages/JoinSession'));
+const PlayerView = lazy(() => import('./pages/PlayerView'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+const BlogList = lazy(() => import('./pages/BlogList'));
+const BlogPostPage = lazy(() => import('./pages/BlogPost'));
+const BlogEditor = lazy(() => import('./pages/BlogEditor'));
 
 function App() {
   return (
     <LayoutShell>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/create" element={<CreateSession />} />
-        <Route path="/session/:sessionId" element={<OrganizerDashboard />} />
-        <Route path="/live/:sessionId" element={<LiveView />} />
-        <Route path="/join/:sessionId" element={<JoinSession />} />
-        <Route path="/player/:sessionId/:playerId" element={<PlayerView />} />
-        <Route path="/blog" element={<BlogList />} />
-        <Route path="/blog/new" element={<BlogEditor />} />
-        <Route path="/blog/edit/:id" element={<BlogEditor />} />
-        <Route path="/blog/:slug" element={<BlogPostPage />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+      <Suspense fallback={<div className="app-loading">Loading...</div>}>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/create" element={<CreateSession />} />
+          <Route path="/session/:sessionId" element={<OrganizerDashboard />} />
+          <Route path="/live/:sessionId" element={<LiveView />} />
+          <Route path="/join/:sessionId" element={<JoinSession />} />
+          <Route path="/player/:sessionId/:playerId" element={<PlayerView />} />
+          <Route path="/blog" element={<BlogList />} />
+          <Route path="/blog/new" element={<BlogEditor />} />
+          <Route path="/blog/edit/:id" element={<BlogEditor />} />
+          <Route path="/blog/:slug" element={<BlogPostPage />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
     </LayoutShell>
   );
 }

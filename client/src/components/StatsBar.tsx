@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 interface StatsBarProps {
   totalPlayers: number;
   matchesPlayed: number;
@@ -11,7 +13,7 @@ interface StatsBarProps {
  * Displays aggregate session statistics in a horizontal row (tablet/desktop)
  * or 2x3 grid (mobile). CSS handles the responsive layout via `.stats-bar`.
  */
-function StatsBar({
+const StatsBar = memo(function StatsBar({
   totalPlayers,
   matchesPlayed,
   averageWinRate,
@@ -48,6 +50,6 @@ function StatsBar({
       </div>
     </div>
   );
-}
+});
 
 export default StatsBar;

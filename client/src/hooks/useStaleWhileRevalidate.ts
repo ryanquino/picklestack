@@ -86,9 +86,8 @@ export function useStaleWhileRevalidate<T>({
 
     if (initialData === null) {
       refresh();
-    } else {
-      startPolling(revalidateInterval);
     }
+    startPolling(revalidateInterval);
 
     const onVisibility = () => {
       if (document.hidden) {

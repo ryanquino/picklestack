@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getSession, addPlayer, removePlayer, movePlayer, startMatch, completeMatch, endSession, getLeaderboard, setPairingMode, updatePlayerStarRating, joinQueue } from '../api';
 import { addSessionToHistory, updateSessionStatus, removeSessionFromHistory } from '../sessionHistory';
@@ -250,65 +250,65 @@ function OrganizerDashboard() {
     if (!loading && !error) loadSession();
   }, 8000, 30000);
 
-  function handleDismissNotification(id: string) {
+  const handleDismissNotification = useCallback((id: string) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
-  }
+  }, []);
 
-  function handlePairingModeChange(mode: PairingMode) {
+  const handlePairingModeChange = useCallback((mode: PairingMode) => {
     setPairingModeState(mode);
-  }
+  }, []);
 
-  function handlePlayerClick(playerId: string) {
+  const handlePlayerClick = useCallback((playerId: string) => {
     setSelectedPlayer({ playerId });
-  }
+  }, []);
 
-  function handleCloseProfile() {
+  const handleCloseProfile = useCallback(() => {
     setSelectedPlayer(null);
-  }
+  }, []);
 
-  async function handleCheckIn(name: string, starRating: StarRating) {
+  const handleCheckIn = useCallback(async (name: string, starRating: StarRating) => {
     if (!sessionId) return;
     await addPlayer(sessionId, name, starRating);
     await loadSession();
-  }
+  }, [sessionId, loadSession]);
 
-  async function handleStarRatingChange(playerId: string, starRating: number) {
+  const handleStarRatingChange = useCallback(async (playerId: string, starRating: number) => {
     if (!sessionId) return;
     await updatePlayerStarRating(sessionId, playerId, starRating);
     await loadSession();
-  }
+  }, [sessionId, loadSession]);
 
-  async function handleMoveUp(playerId: string) {
+  const handleMoveUp = useCallback(async (playerId: string) => {
     if (!sessionId) return;
     await movePlayer(sessionId, playerId, 'up');
     await loadSession();
-  }
+  }, [sessionId, loadSession]);
 
-  async function handleMoveDown(playerId: string) {
+  const handleMoveDown = useCallback(async (playerId: string) => {
     if (!sessionId) return;
     await movePlayer(sessionId, playerId, 'down');
     await loadSession();
-  }
+  }, [sessionId, loadSession]);
 
-  async function handleRemove(playerId: string) {
+  const handleRemove = useCallback(async (playerId: string) => {
     if (!sessionId) return;
     await removePlayer(sessionId, playerId);
     await loadSession();
-  }
+  }, [sessionId, loadSession]);
 
-  async function handleStartMatch(courtNumber: number) {
+  const handleStartMatch = useCallback(async (courtNumber: number) => {
     if (!sessionId) return;
     await startMatch(sessionId, courtNumber);
     await loadSession();
-  }
+  }, [sessionId, loadSession]);
 
-  async function handleCompleteMatch(courtNumber: number) {
+  const handleCompleteMatch = useCallback(async (courtNumber: number) => {
     if (!sessionId) return;
     await completeMatch(sessionId, courtNumber);
     await loadSession();
-  }
+  }, [sessionId, loadSession]);
 
-  async function handleEndSession() {
+  const handleEndSession = useCallback(async () => {
     if (!sessionId) return;
     const confirmed = window.confirm(
       'Are you sure you want to end this session? This will complete all active matches and clear the queue.'
@@ -317,13 +317,13 @@ function OrganizerDashboard() {
     await endSession(sessionId);
     removeSessionFromHistory(sessionId);
     await loadSession();
-  }
+  }, [sessionId, loadSession]);
 
-  async function handleJoinQueue(playerId: string) {
+  const handleJoinQueue = useCallback(async (playerId: string) => {
     if (!sessionId) return;
     await joinQueue(sessionId, playerId);
     await loadSession();
-  }
+  }, [sessionId, loadSession]);
 
   async function handleCopyLiveUrl() {
     if (!state) return;
@@ -361,6 +361,35 @@ function OrganizerDashboard() {
       setTimeout(() => setCopiedJoin(false), 2000);
     }
   }
+
+  // Enrich queue entries with player stats and achievements (must be before any early returns)
+  const statsMap = useMemo(() => new Map((state?.playerStats ?? []).map((s) => [s.playerId, s])), [state?.playerStats]);
+  const achievementsByPlayer = useMemo(() => {
+    const map = new Map<string, Achievement[]>();
+    for (const a of (state?.achievements ?? [])) {
+      const list = map.get(a.playerId) || [];
+      list.push(a);
+      map.set(a.playerId, list);
+    }
+    return map;
+  }, [state?.achievements]);
+
+  const mvpPlayerId = state?.mvpPlayerId ?? null;
+
+  const enrichedQueue: EnrichedQueueEntry[] = useMemo(() => (state?.queue ?? []).map((entry) => {
+    const stats = statsMap.get(entry.playerId);
+    return {
+      ...entry,
+      rating: stats?.rating ?? 1000,
+      starRating: (stats?.starRating ?? 3) as StarRating,
+      wins: stats?.wins ?? 0,
+      losses: stats?.losses ?? 0,
+      winRate: stats?.winRate ?? 0,
+      streak: stats?.streak ?? 0,
+      isMvp: entry.playerId === mvpPlayerId,
+      achievements: achievementsByPlayer.get(entry.playerId) || [],
+    };
+  }), [state?.queue, statsMap, achievementsByPlayer, mvpPlayerId]);
 
   if (loading) {
     return (
@@ -410,32 +439,6 @@ function OrganizerDashboard() {
   }
 
   const isEnded = state.session.status === 'ended';
-
-  // Enrich queue entries with player stats and achievements
-  const statsMap = new Map((state.playerStats ?? []).map((s) => [s.playerId, s]));
-  const achievementsByPlayer = new Map<string, Achievement[]>();
-  for (const a of (state.achievements ?? [])) {
-    const list = achievementsByPlayer.get(a.playerId) || [];
-    list.push(a);
-    achievementsByPlayer.set(a.playerId, list);
-  }
-
-  const mvpPlayerId = state.mvpPlayerId ?? null;
-
-  const enrichedQueue: EnrichedQueueEntry[] = state.queue.map((entry) => {
-    const stats = statsMap.get(entry.playerId);
-    return {
-      ...entry,
-      rating: stats?.rating ?? 1000,
-      starRating: (stats?.starRating ?? 3) as StarRating,
-      wins: stats?.wins ?? 0,
-      losses: stats?.losses ?? 0,
-      winRate: stats?.winRate ?? 0,
-      streak: stats?.streak ?? 0,
-      isMvp: entry.playerId === mvpPlayerId,
-      achievements: achievementsByPlayer.get(entry.playerId) || [],
-    };
-  });
 
   return (
     <div className="organizer-dashboard">

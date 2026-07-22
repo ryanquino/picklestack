@@ -329,6 +329,10 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response, next: NextFunc
     const sessionRow = getSessionById(sessionId)!;
     const sessionMatchingMode = sessionRow.matching_mode;
 
+    // Batch-fetch all players once to avoid N+1 queries
+    const allPlayers = getPlayersBySession(sessionId);
+    const playerById = new Map(allPlayers.map(p => [p.id, p]));
+
     // Get player stats and achievements
     const playerStats = matchResultService.getPlayerStats(sessionId);
     const achievements = achievementsService.getSessionAchievementsAll(sessionId);
@@ -357,7 +361,7 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response, next: NextFunc
         courtNumber: match.court_number,
         playerIds,
         players: playerIds.map((playerId) => {
-          const player = getPlayerById(playerId);
+          const player = playerById.get(playerId);
           return player ? { id: player.id, name: player.name } : { id: playerId, name: '(removed)' };
         }),
         status: match.status,
@@ -384,7 +388,6 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response, next: NextFunc
     const qualityMetrics = getSessionQualityMetrics(sessionId);
 
     // Compute bench players (in session but not in queue and not in active match)
-    const allPlayers = getPlayersBySession(sessionId);
     const queuePlayerIds = new Set<string>();
     for (const e of queue) {
       queuePlayerIds.add((e as any).playerId);
@@ -443,7 +446,7 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response, next: NextFunc
       qualityMetrics,
       ...(session.status === 'ended' ? {
         summary: {
-          totalPlayersCheckedIn: getPlayersBySession(sessionId).length,
+          totalPlayersCheckedIn: allPlayers.length,
           totalMatchesCompleted: getCompletedMatchCountBySession(sessionId),
         },
         completedMatches: (() => {
@@ -456,7 +459,7 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response, next: NextFunc
               const result = resultByMatchId.get(m.id);
               const playerIds: string[] = JSON.parse(m.player_ids);
               const playerNames = playerIds.map(pid => {
-                const p = getPlayerById(pid);
+                const p = playerById.get(pid);
                 return p ? p.name : '(removed)';
               });
               let winningTeam: number | null = null;
@@ -516,6 +519,10 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
     const courts = courtService.getCourts(sessionId);
     const activeMatches = getActiveMatchesBySession(sessionId);
 
+    // Batch-fetch all players once to avoid N+1 queries
+    const allPlayers = getPlayersBySession(sessionId);
+    const playerById = new Map(allPlayers.map(p => [p.id, p]));
+
     // Get last match result for each player (for comeback bracket sorting)
     const ratingRows = getPlayerRatingsBySession(sessionId);
     const lastResultMap = new Map<string, string | null>();
@@ -540,7 +547,6 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
     // Format queue with "up next" marking for first 4, plus player stats
     const formattedQueue = queue.map((entry, index) => {
       const stats = statsMap.get(entry.playerId);
-      const player = getPlayerById(entry.playerId);
       return {
         playerId: entry.playerId,
         playerName: entry.playerName,
@@ -567,7 +573,7 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
       id: match.id,
       courtNumber: match.court_number,
       players: (JSON.parse(match.player_ids) as string[]).map((playerId) => {
-        const player = getPlayerById(playerId);
+        const player = playerById.get(playerId);
         const stats = statsMap.get(playerId);
         return {
           id: playerId,
@@ -609,7 +615,7 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
           const result = resultByMatchId.get(m.id);
           const playerIds: string[] = JSON.parse(m.player_ids);
           const playerNames = playerIds.map(pid => {
-            const p = getPlayerById(pid);
+            const p = playerById.get(pid);
             return p ? p.name : '(removed)';
           });
           // Determine winning team: team 1 = first half, team 2 = second half
@@ -679,7 +685,7 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
       ),
       ...(session.matchingMode === 'club_raid' ? {
         clubRaid: {
-          players: getPlayersBySession(sessionId).map(p => ({ id: p.id, name: p.name })),
+          players: allPlayers.map(p => ({ id: p.id, name: p.name })),
         },
       } : {}),
     };
@@ -916,10 +922,12 @@ app.get('/api/sessions/:sessionId/pairs', (req: Request, res: Response, next: Ne
   try {
     const sessionId = req.params.sessionId as string;
     const pairs = fixedPairService.getFixedPairsBySession(sessionId);
+    const allPlayers = getPlayersBySession(sessionId);
+    const playerById = new Map(allPlayers.map(p => [p.id, p]));
     // Enrich with player names
     const enriched = pairs.map(pair => {
-      const p1 = getPlayerById(pair.player1Id);
-      const p2 = getPlayerById(pair.player2Id);
+      const p1 = playerById.get(pair.player1Id);
+      const p2 = playerById.get(pair.player2Id);
       return {
         ...pair,
         player1Name: p1 ? p1.name : '(removed)',
@@ -1407,6 +1415,8 @@ app.get('/api/sessions/:sessionId/players/:playerId/head-to-head', (req: Request
 
     const pairingRows = getHeadToHeadRecords(sessionId, playerId);
     const resultRows = getMatchResultsBySession(sessionId);
+    const allPlayers = getPlayersBySession(sessionId);
+    const playerById = new Map(allPlayers.map(p => [p.id, p]));
 
     // Build head-to-head records by counting wins/losses against each opponent
     const opponentMap = new Map<string, { wins: number; losses: number; encounters: number }>();
@@ -1444,7 +1454,7 @@ app.get('/api/sessions/:sessionId/players/:playerId/head-to-head', (req: Request
     const records: HeadToHeadRecord[] = [];
     for (const [opponentId, record] of opponentMap) {
       if (record.encounters === 0) continue;
-      const opponentPlayer = getPlayerById(opponentId);
+      const opponentPlayer = playerById.get(opponentId);
       records.push({
         opponentId,
         opponentName: opponentPlayer?.name ?? '(removed)',
@@ -1559,10 +1569,14 @@ app.get('/api/sessions/:sessionId/players/:playerId/profile', (req: Request, res
       }
     }
 
+    // Batch-fetch players for head-to-head name resolution
+    const allSessionPlayers = getPlayersBySession(sessionId);
+    const playerByIdForH2H = new Map(allSessionPlayers.map(p => [p.id, p]));
+
     const headToHead: HeadToHeadRecord[] = [];
     for (const [opponentId, record] of opponentMap) {
       if (record.encounters === 0) continue;
-      const opponentPlayer = getPlayerById(opponentId);
+      const opponentPlayer = playerByIdForH2H.get(opponentId);
       headToHead.push({
         opponentId,
         opponentName: opponentPlayer?.name ?? '(removed)',
@@ -1687,11 +1701,13 @@ app.put('/api/sessions/:sessionId/players/gender-bulk', (req: Request, res: Resp
     }
 
     const db = getDb();
+    const allPlayers = getPlayersBySession(sessionId);
+    const playerById = new Map(allPlayers.map(p => [p.id, p]));
     const stmt = db.prepare('UPDATE players SET gender = ? WHERE id = ?');
     let count = 0;
     for (const u of updates) {
       if (u.gender !== null && u.gender !== 'male' && u.gender !== 'female') continue;
-      const player = getPlayerById(u.playerId);
+      const player = playerById.get(u.playerId);
       if (!player || player.session_id !== sessionId) continue;
       stmt.run(u.gender, u.playerId);
       count++;
@@ -2278,10 +2294,12 @@ app.get('/api/sessions/:sessionId/club-raid/schedule', (req: Request, res: Respo
     if (!session) throw new NotFoundError('Session not found');
 
     const rows = repo.getClubRaidMatchesBySession(sessionId);
+    const raidPlayers = getPlayersBySession(sessionId);
+    const raidPlayerById = new Map(raidPlayers.map(p => [p.id, p]));
     const matches = rows.map(m => {
       const getPlayerName = (id: string | null) => {
         if (!id) return null;
-        const p = repo.getPlayerById(id);
+        const p = raidPlayerById.get(id);
         return p?.name ?? null;
       };
       // Fetch score from match_results if match is completed

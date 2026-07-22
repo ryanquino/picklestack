@@ -67,6 +67,12 @@ CREATE TABLE IF NOT EXISTS matches (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_active_court
   ON matches(session_id, court_number) WHERE status = 'active';
 
+CREATE INDEX IF NOT EXISTS idx_matches_session
+  ON matches(session_id);
+
+CREATE INDEX IF NOT EXISTS idx_queue_entries_session
+  ON queue_entries(session_id);
+
 CREATE TABLE IF NOT EXISTS match_results (
   id TEXT PRIMARY KEY,
   match_id TEXT NOT NULL REFERENCES matches(id),
@@ -79,6 +85,9 @@ CREATE TABLE IF NOT EXISTS match_results (
   updated_at TEXT NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS idx_match_results_session
+  ON match_results(session_id);
+
 CREATE TABLE IF NOT EXISTS player_ratings (
   player_id TEXT NOT NULL REFERENCES players(id),
   session_id TEXT NOT NULL REFERENCES sessions(id),
@@ -89,6 +98,9 @@ CREATE TABLE IF NOT EXISTS player_ratings (
   star_rating INTEGER NOT NULL DEFAULT 3,
   PRIMARY KEY (player_id, session_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_player_ratings_session
+  ON player_ratings(session_id);
 
 CREATE TABLE IF NOT EXISTS pairing_history (
   session_id TEXT NOT NULL REFERENCES sessions(id),

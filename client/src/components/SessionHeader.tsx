@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { PairingMode } from '../types';
 
 /**
@@ -18,11 +19,11 @@ interface SessionHeaderProps {
   onEndSession?: () => void;
 }
 
-function SessionHeader({
+const SessionHeader = memo(function SessionHeader({
   sessionName = 'Session',
   isLive = true,
   courtName,
-  dateTime = new Date().toLocaleString(),
+  dateTime,
   pairingMode = 'queue',
   isMLP = false,
   onTogglePairingMode,
@@ -43,7 +44,7 @@ function SessionHeader({
           )}
         </div>
         <div className="session-header__meta">
-          <span className="session-header__datetime">{dateTime}</span>
+          {dateTime && <span className="session-header__datetime">{dateTime}</span>}
           {courtName && (
             <span className="session-header__court">{courtName}</span>
           )}
@@ -88,6 +89,6 @@ function SessionHeader({
       </div>
     </header>
   );
-}
+});
 
 export default SessionHeader;

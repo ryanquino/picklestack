@@ -1,10 +1,11 @@
+import { memo } from 'react';
 import { LeaderboardEntry } from '../types';
 
 interface LeaderboardProps {
   entries: LeaderboardEntry[];
 }
 
-function Leaderboard({ entries }: LeaderboardProps) {
+const Leaderboard = memo(function Leaderboard({ entries }: LeaderboardProps) {
   if (entries.length === 0) {
     return null;
   }
@@ -51,6 +52,6 @@ function Leaderboard({ entries }: LeaderboardProps) {
       </div>
     </div>
   );
-}
+});
 
 export default Leaderboard;

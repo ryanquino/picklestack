@@ -1024,14 +1024,6 @@ export function previewNextMatch(sessionId: string): string[] {
       const team2Expanded = expandTeamPlayerIds(result.team2, candidatePool);
       const selectedIds = [...team1Expanded, ...team2Expanded];
       
-      // Log what was selected for debugging
-      const poolEntryIds = candidatePool.map(c => c.playerId);
-      const queueTop6Ids = queue.slice(0, 6).map(e => e.player_id);
-      console.log('[PREVIEW] Pool entry IDs:', poolEntryIds.map(id => id.slice(0, 8)));
-      console.log('[PREVIEW] Queue top 6 player_ids:', queueTop6Ids.map(id => id.slice(0, 8)));
-      console.log('[PREVIEW] Selected (expanded):', selectedIds.map(id => id.slice(0, 8)));
-      console.log('[PREVIEW] result.team1:', result.team1.map(id => id.slice(0, 8)), 'result.team2:', result.team2.map(id => id.slice(0, 8)));
-      
       return selectedIds;
     }
   } catch {

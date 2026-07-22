@@ -3,52 +3,13 @@ import { useEffect, useState, useCallback } from 'react';
 import { getSessionLive, getPlayerProfile, getPlayerStatus } from '../api';
 import { useVisibilityPolling } from '../hooks/useVisibilityPolling';
 import type { PlayerStats, Achievement, StarRating, GameMode, MatchingMode, PlayerProfile, MatchHistoryEntry } from '../types';
+import { LiveTimer, WaitTimer, renderStars } from '../utils/timers';
 import ScrollToTopButton from '../components/ScrollToTopButton';
 import LeaderboardCard from '../components/LeaderboardCard';
 import Navbar from '../components/Navbar';
 import SessionAwards from '../components/SessionAwards';
 import PlayerProfileCard from '../components/PlayerProfileCard';
 import Footer from '../components/Footer';
-
-/** Live timer that updates every second, displays mm:ss */
-function LiveTimer({ startedAt }: { startedAt: string }) {
-  const [elapsed, setElapsed] = useState(() => {
-    const diff = Date.now() - new Date(startedAt).getTime();
-    return Math.max(0, Math.floor(diff / 1000));
-  });
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const diff = Date.now() - new Date(startedAt).getTime();
-      setElapsed(Math.max(0, Math.floor(diff / 1000)));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [startedAt]);
-
-  const minutes = Math.floor(elapsed / 60);
-  const seconds = elapsed % 60;
-  return <span>⏱ {minutes}:{seconds.toString().padStart(2, '0')}</span>;
-}
-
-/** Live wait timer — shows m:ss since a given timestamp */
-function WaitTimer({ since }: { since: string }) {
-  const [elapsed, setElapsed] = useState(() => {
-    const diff = Date.now() - new Date(since).getTime();
-    return Math.max(0, Math.floor(diff / 1000));
-  });
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const diff = Date.now() - new Date(since).getTime();
-      setElapsed(Math.max(0, Math.floor(diff / 1000)));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [since]);
-
-  const minutes = Math.floor(elapsed / 60);
-  const seconds = elapsed % 60;
-  return <span>{minutes}:{seconds.toString().padStart(2, '0')}</span>;
-}
 
 interface EnrichedQueueEntry {
   playerId: string;
@@ -144,10 +105,6 @@ type ViewState =
   | { kind: 'ended'; data: LiveResponse }
   | { kind: 'active'; data: LiveResponse }
   | { kind: 'error'; message: string };
-
-function renderStars(starRating: StarRating): string {
-  return '★'.repeat(starRating) + '☆'.repeat(5 - starRating);
-}
 
 interface PersonalRecord {
   label: string;

@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 interface Highlight {
   id: string;
   emoji: string;
@@ -10,7 +12,7 @@ interface HighlightsTickerProps {
   highlights: Highlight[];
 }
 
-function HighlightsTicker({ highlights }: HighlightsTickerProps) {
+const HighlightsTicker = memo(function HighlightsTicker({ highlights }: HighlightsTickerProps) {
   if (!highlights || highlights.length === 0) return null;
 
   // Only duplicate for seamless loop if we have enough items
@@ -30,6 +32,6 @@ function HighlightsTicker({ highlights }: HighlightsTickerProps) {
       </div>
     </div>
   );
-}
+});
 
 export default HighlightsTicker;

@@ -1,6 +1,7 @@
+import { memo } from 'react';
 import { Link } from 'react-router-dom';
 
-function Footer() {
+const Footer = memo(function Footer() {
   return (
     <footer className="footer">
       <Link to="/" className="footer__brand">
@@ -9,6 +10,6 @@ function Footer() {
       <p className="footer__copy">&copy; 2026 PicklStack. All rights reserved.</p>
     </footer>
   );
-}
+});
 
 export default Footer;

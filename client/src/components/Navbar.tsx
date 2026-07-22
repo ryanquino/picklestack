@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 interface NavbarProps {
   showBlog?: boolean;
 }
 
-function Navbar({ showBlog }: NavbarProps) {
+const Navbar = memo(function Navbar({ showBlog }: NavbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -39,6 +39,6 @@ function Navbar({ showBlog }: NavbarProps) {
       </div>
     </nav>
   );
-}
+});
 
 export default Navbar;

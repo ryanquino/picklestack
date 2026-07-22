@@ -1,5 +1,5 @@
 {
-  "name": "pickld",
+  "name": "picklstack",
   "version": "1.0.0",
   "private": true,
   "workspaces": [
@@ -13,8 +13,5 @@
     "start": "npm run start --workspace=server",
     "test": "npm run test --workspace=server",
     "db:clean": "node -e \"const fs=require('fs');['server/data/picklestack.db','server/data/picklestack.db-wal','server/data/picklestack.db-shm'].forEach(f=>{try{fs.unlinkSync(f);console.log('Deleted',f)}catch{}})\""
-  },
-  "dependencies": {
-    "22": "^0.0.0"
   }
 }

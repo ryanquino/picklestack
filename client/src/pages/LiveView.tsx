@@ -1,8 +1,9 @@
 import { useParams } from 'react-router-dom';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { getSessionLive } from '../api';
 import { useStaleWhileRevalidate } from '../hooks/useStaleWhileRevalidate';
 import type { PlayerStats, Achievement, LeaderboardEntry, StarRating, GameMode, MatchingMode } from '../types';
+import { LiveTimer, renderStars } from '../utils/timers';
 import Leaderboard from '../components/Leaderboard';
 import ScrollToTopButton from '../components/ScrollToTopButton';
 import SessionAwards from '../components/SessionAwards';
@@ -14,25 +15,6 @@ import Navbar from '../components/Navbar';
 import ClubRaidPanel from '../components/ClubRaidPanel';
 import Footer from '../components/Footer';
 
-/** Live timer that updates every second, displays mm:ss */
-function LiveTimer({ startedAt }: { startedAt: string }) {
-  const [elapsed, setElapsed] = useState(() => {
-    const diff = Date.now() - new Date(startedAt).getTime();
-    return Math.max(0, Math.floor(diff / 1000));
-  });
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const diff = Date.now() - new Date(startedAt).getTime();
-      setElapsed(Math.max(0, Math.floor(diff / 1000)));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [startedAt]);
-
-  const minutes = Math.floor(elapsed / 60);
-  const seconds = elapsed % 60;
-  return <span>⏱ {minutes}:{seconds.toString().padStart(2, '0')}</span>;
-}
 interface EnrichedQueueEntry {
   playerId: string;
   playerName: string;
@@ -143,11 +125,6 @@ function buildLeaderboard(playerStats: PlayerStats[], achievements: Achievement[
   }));
 }
 
-/** Render star rating as filled/empty stars */
-function renderStars(starRating: StarRating): string {
-  return '★'.repeat(starRating) + '☆'.repeat(5 - starRating);
-}
-
 /** Compute on-deck player count based on game mode */
 function getOnDeckCount(gameMode: GameMode, matchingMode: MatchingMode, queueLength: number): number {
   // On deck = positions 4-9 (6 players after the next match group)
@@ -164,6 +141,11 @@ function LiveView() {
     revalidateInterval: 5000,
     backgroundInterval: 30000,
   });
+
+  const leaderboardEntries = useMemo(
+    () => buildLeaderboard(data?.playerStats ?? [], data?.achievements ?? [], data?.mvpPlayerId),
+    [data?.playerStats, data?.achievements, data?.mvpPlayerId]
+  );
 
   if (isLoading && !data) {
     return (
@@ -216,7 +198,6 @@ function LiveView() {
   const matchingMode = session.matchingMode || 'balanced';
   const onDeckCount = getOnDeckCount(gameMode, matchingMode, queue.length);
   const onDeckPlayers = queue.slice(0, onDeckCount);
-  const leaderboardEntries = buildLeaderboard(playerStats, achievements, liveData.mvpPlayerId);
   const courtNames = session.courtNames || {};
 
   const playersPerMatch = gameMode === 'singles' ? 2 : 4;
@@ -237,6 +218,7 @@ function LiveView() {
         sessionName={session.name}
         activeCourts={activeMatches.length}
         queuedPlayers={queue.length}
+        dateTime={new Date().toLocaleString()}
       />
 
       {/* Courts first */}

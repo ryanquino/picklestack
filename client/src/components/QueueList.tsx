@@ -1,27 +1,8 @@
 import { useState, useEffect } from 'react';
 import type { PlayerStats, Achievement, StarRating, GameMode, MatchingMode } from '../types';
+import { WaitTimer } from '../utils/timers';
 import PlayerProfileCard from './PlayerProfileCard';
 import PairPlayerModal from './PairPlayerModal';
-
-/** Live wait timer — shows m:ss since a given timestamp */
-function WaitTimer({ since }: { since: string }) {
-  const [elapsed, setElapsed] = useState(() => {
-    const diff = Date.now() - new Date(since).getTime();
-    return Math.max(0, Math.floor(diff / 1000));
-  });
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const diff = Date.now() - new Date(since).getTime();
-      setElapsed(Math.max(0, Math.floor(diff / 1000)));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [since]);
-
-  const minutes = Math.floor(elapsed / 60);
-  const seconds = elapsed % 60;
-  return <span>{minutes}:{seconds.toString().padStart(2, '0')}</span>;
-}
 
 interface QueueEntry {
   playerId: string;

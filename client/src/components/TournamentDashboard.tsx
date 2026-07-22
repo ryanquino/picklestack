@@ -18,6 +18,7 @@ import {
   advanceTournamentRound,
   getAllPlayers,
 } from '../api';
+import { useVisibilityPolling } from '../hooks/useVisibilityPolling';
 import BracketDisplay from './BracketDisplay';
 import TournamentMatchPanel from './TournamentMatchPanel';
 
@@ -79,9 +80,9 @@ export default function TournamentDashboard({ sessionId, courtCount, onMatchStar
 
   useEffect(() => {
     fetchTournament();
-    const interval = setInterval(fetchTournament, 5000);
-    return () => clearInterval(interval);
   }, [fetchTournament]);
+
+  useVisibilityPolling(fetchTournament, 5000, 30000);
 
   const fetchPlayers = useCallback(async () => {
     try {
