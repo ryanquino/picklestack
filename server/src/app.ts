@@ -1,5 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import multer from 'multer';
+import { createHash } from 'crypto';
 import { ValidationError, NotFoundError } from './errors';
 import * as sessionService from './services/sessionService';
 import * as queueService from './services/queueService';
@@ -16,6 +18,7 @@ import { computeWaitEstimates } from './services/queueEstimatorService';
 import { computeMatchQuality, getSessionQualityMetrics } from './services/qualityScorerService';
 import * as mlpTournament from './services/mlpTournamentService';
 import * as repo from './repository';
+import * as blogService from './services/blogService';
 import {
   getActiveMatchByCourt,
   getActiveMatchesBySession,
@@ -411,7 +414,9 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response, next: NextFunc
         };
       });
 
-    res.json({
+    const totalCompleted = getCompletedMatchCountBySession(sessionId);
+    const fixedPairs = fixedPairService.getFixedPairsBySession(sessionId);
+    const payload = {
       session: {
         ...session,
         pairingMode: sessionRow.pairing_mode,
@@ -426,11 +431,12 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response, next: NextFunc
       activeMatches: matches,
       playerStats,
       achievements,
+      fixedPairs,
       sessionAwards: computeSessionAwards(sessionId),
       highlights: computeSessionHighlights(sessionId),
       benchPlayers,
       mvpPlayerId,
-      totalCompletedMatches: getCompletedMatchCountBySession(sessionId),
+      totalCompletedMatches: totalCompleted,
       nextMatchPlayerIds: courtService.previewNextMatch(sessionId),
       diversity,
       waitEstimates,
@@ -477,7 +483,18 @@ app.get('/api/sessions/:sessionId', (req: Request, res: Response, next: NextFunc
             });
         })(),
       } : {}),
-    });
+    };
+
+    const etagInput = `${session.updatedAt}:${totalCompleted}:${queue.length}:${matches.length}:${playerStats.length}`;
+    const etag = `"${createHash('md5').update(etagInput).digest('hex')}"`;
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'no-cache');
+    if (req.headers['if-none-match'] === etag) {
+      res.status(304).end();
+      return;
+    }
+
+    res.json(payload);
   } catch (err) {
     next(err);
   }
@@ -627,7 +644,9 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
       waitEstimates[entry.playerId] = entry.estimatedMinutes;
     }
 
-    res.json({
+    // Build response
+    const totalCompletedMatches = getCompletedMatchCountBySession(sessionId);
+    const payload = {
       session: {
         id: session.id,
         name: session.name,
@@ -648,8 +667,8 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
       achievements,
       sessionAwards: computeSessionAwards(sessionId),
       highlights: computeSessionHighlights(sessionId),
-      completedMatches,
-      totalCompletedMatches: getCompletedMatchCountBySession(sessionId),
+      completedMatches: session.status === 'ended' ? completedMatches : [],
+      totalCompletedMatches,
       waitEstimates,
       mvpPlayerId,
       nextMatchPlayerIds: courtService.previewNextMatch(sessionId),
@@ -663,7 +682,20 @@ app.get('/api/sessions/:sessionId/live', (req: Request, res: Response, next: Nex
           players: getPlayersBySession(sessionId).map(p => ({ id: p.id, name: p.name })),
         },
       } : {}),
-    });
+    };
+
+    // ETag based on session state — returns 304 when nothing changed
+    const etagInput = `${session.updatedAt}:${totalCompletedMatches}:${queue.length}:${activeMatches.length}:${playerStats.length}`;
+    const etag = `"${createHash('md5').update(etagInput).digest('hex')}"`;
+    res.setHeader('ETag', etag);
+    // stale-while-revalidate: browser uses cache for 5s, then shows stale while fetching fresh
+    res.setHeader('Cache-Control', 'public, max-age=5, stale-while-revalidate=30');
+    if (req.headers['if-none-match'] === etag) {
+      res.status(304).end();
+      return;
+    }
+
+    res.json(payload);
   } catch (err) {
     next(err);
   }
@@ -2386,6 +2418,116 @@ app.post('/api/sessions/:sessionId/club-raid/schedule/:matchId/start', (req: Req
   } catch (err) {
     next(err);
   }
+});
+
+// ============================================================
+// Blog Routes
+// ============================================================
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+
+/**
+ * GET /api/blog — List all blog posts
+ */
+app.get('/api/blog', (_req: Request, res: Response) => {
+  const posts = blogService.getAllPosts();
+  res.json(posts);
+});
+
+/**
+ * GET /api/blog/:slug — Get single post with comments
+ */
+app.get('/api/blog/:slug', (req: Request, res: Response) => {
+  const slug = req.params.slug as string;
+  const post = blogService.getPostBySlug(slug);
+  if (!post) {
+    res.status(404).json({ error: 'Post not found' });
+    return;
+  }
+  const comments = blogService.getCommentsByPostId(post.id);
+  res.json({ ...post, comments });
+});
+
+/**
+ * POST /api/blog — Create a new post
+ */
+app.post('/api/blog', (req: Request, res: Response) => {
+  const { title, content, excerpt, coverImage, author } = req.body;
+  if (!title || !content) {
+    res.status(400).json({ error: 'Title and content are required' });
+    return;
+  }
+  const post = blogService.createPost({ title, content, excerpt, coverImage, author });
+  res.status(201).json(post);
+});
+
+/**
+ * PUT /api/blog/:id — Update a post
+ */
+app.put('/api/blog/:id', (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  const post = blogService.updatePost(id, req.body);
+  if (!post) {
+    res.status(404).json({ error: 'Post not found' });
+    return;
+  }
+  res.json(post);
+});
+
+/**
+ * DELETE /api/blog/:id — Delete a post
+ */
+app.delete('/api/blog/:id', (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  const deleted = blogService.deletePost(id);
+  if (!deleted) {
+    res.status(404).json({ error: 'Post not found' });
+    return;
+  }
+  res.status(204).end();
+});
+
+/**
+ * POST /api/blog/:id/comments — Add a comment
+ */
+app.post('/api/blog/:id/comments', (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  const { author, content } = req.body;
+  if (!author || !content) {
+    res.status(400).json({ error: 'Author and content are required' });
+    return;
+  }
+  const comment = blogService.addComment(id, { author, content });
+  if (!comment) {
+    res.status(404).json({ error: 'Post not found' });
+    return;
+  }
+  res.status(201).json(comment);
+});
+
+/**
+ * POST /api/blog/upload — Upload an image
+ */
+app.post('/api/blog/upload', upload.single('image'), (req: Request, res: Response) => {
+  if (!req.file) {
+    res.status(400).json({ error: 'No image file provided' });
+    return;
+  }
+  const url = blogService.saveImage(req.file.originalname, req.file.buffer);
+  res.status(201).json({ url });
+});
+
+/**
+ * GET /api/blog/images/:filename — Serve blog images
+ */
+app.get('/api/blog/images/:filename', (req: Request, res: Response) => {
+  const filename = req.params.filename as string;
+  const filePath = blogService.getImagePath(filename);
+  if (!filePath) {
+    res.status(404).json({ error: 'Image not found' });
+    return;
+  }
+  res.sendFile(filePath);
 });
 
 // ============================================================

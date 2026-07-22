@@ -6,6 +6,9 @@ import LiveView from './pages/LiveView';
 import JoinSession from './pages/JoinSession';
 import PlayerView from './pages/PlayerView';
 import NotFound from './pages/NotFound';
+import BlogList from './pages/BlogList';
+import BlogPostPage from './pages/BlogPost';
+import BlogEditor from './pages/BlogEditor';
 import LayoutShell from './components/LayoutShell';
 
 function App() {
@@ -18,6 +21,10 @@ function App() {
         <Route path="/live/:sessionId" element={<LiveView />} />
         <Route path="/join/:sessionId" element={<JoinSession />} />
         <Route path="/player/:sessionId/:playerId" element={<PlayerView />} />
+        <Route path="/blog" element={<BlogList />} />
+        <Route path="/blog/new" element={<BlogEditor />} />
+        <Route path="/blog/edit/:id" element={<BlogEditor />} />
+        <Route path="/blog/:slug" element={<BlogPostPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </LayoutShell>

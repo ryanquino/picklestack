@@ -35,7 +35,7 @@ export default function ReplacePlayerModal({
     async function load() {
       try {
         const data = await getSessionLive(sessionId);
-        if (!mounted) return;
+        if (!data || !mounted) return;
         const q = (data.queue || []).map((entry: any) => ({
           playerId: entry.playerId,
           playerName: entry.playerName,

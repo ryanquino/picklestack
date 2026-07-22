@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom';
 
-/**
- * Top navigation bar with logo, app name, and nav links.
- * Displayed on the landing page and create session page.
- */
-function Navbar() {
+interface NavbarProps {
+  showBlog?: boolean;
+}
+
+function Navbar({ showBlog }: NavbarProps) {
   return (
     <nav className="navbar" aria-label="Main navigation">
       <Link to="/" className="navbar__brand">
@@ -12,6 +12,12 @@ function Navbar() {
       </Link>
 
       <div className="navbar__links">
+        {showBlog && (
+          <Link to="/blog" className="navbar__link">
+            <span className="navbar__link-icon" aria-hidden="true">📝</span>
+            Blog
+          </Link>
+        )}
         <Link to="/create" className="navbar__link">
           <span className="navbar__link-icon" aria-hidden="true">🏓</span>
           New Game

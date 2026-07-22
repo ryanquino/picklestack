@@ -1,13 +1,21 @@
 import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import Navbar from '../components/Navbar';
 import { getSessionHistory, SessionHistoryEntry } from '../sessionHistory';
+import { getBlogPosts, type BlogPost } from '../api';
+import BlogCard from '../components/BlogCard';
 
 function LandingPage() {
   const recentSessions = getSessionHistory().filter(s => s.status === 'active');
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
+
+  useEffect(() => {
+    getBlogPosts().then(setBlogPosts).catch(() => {});
+  }, []);
 
   return (
     <div className="landing" data-testid="landing-page">
-      <Navbar />
+      <Navbar showBlog />
 
       {/* Hero Section */}
       <section className="landing__hero">
@@ -146,6 +154,34 @@ function LandingPage() {
               <p className="landing__step-desc">Live leaderboard, awards, and a shareable spectator view.</p>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Blog Section */}
+      <section className="landing__blog">
+        <div className="landing__section-inner">
+          <h2 className="landing__section-title">From the Blog</h2>
+          <p className="landing__section-subtitle">
+            News, tips, and updates from the court
+          </p>
+          {blogPosts.length > 0 ? (
+            <div className="landing__blog-grid">
+              {blogPosts.slice(0, 3).map((post) => (
+                <BlogCard key={post.id} post={post} />
+              ))}
+            </div>
+          ) : (
+            <p style={{ textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+              No posts yet — check back soon!
+            </p>
+          )}
+          {blogPosts.length > 3 && (
+            <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
+              <Link to="/blog" className="landing__btn landing__btn--secondary">
+                View All Posts
+              </Link>
+            </div>
+          )}
         </div>
       </section>
 

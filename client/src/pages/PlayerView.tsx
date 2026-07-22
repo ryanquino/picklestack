@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useCallback } from 'react';
 import { getSessionLive, getPlayerProfile, getPlayerStatus } from '../api';
+import { useVisibilityPolling } from '../hooks/useVisibilityPolling';
 import type { PlayerStats, Achievement, StarRating, GameMode, MatchingMode, PlayerProfile, MatchHistoryEntry } from '../types';
 import ScrollToTopButton from '../components/ScrollToTopButton';
 import LeaderboardCard from '../components/LeaderboardCard';
@@ -246,7 +247,8 @@ function PlayerView() {
     }
 
     try {
-      const data = await getSessionLive(sessionId) as unknown as LiveResponse;
+      const data = await getSessionLive(sessionId) as unknown as LiveResponse | null;
+      if (!data) return; // 304 — nothing changed
       if (data.session.status === 'ended') {
         setState({ kind: 'ended', data });
       } else {
@@ -272,15 +274,13 @@ function PlayerView() {
     }
   }, [sessionId, playerId]);
 
+  // Initial fetch + background-aware polling
   useEffect(() => {
     fetchLiveData();
     fetchPlayerProfile();
-    const interval = setInterval(() => {
-      fetchLiveData();
-      fetchPlayerProfile();
-    }, 3000);
-    return () => clearInterval(interval);
   }, [fetchLiveData, fetchPlayerProfile]);
+  useVisibilityPolling(fetchLiveData, 5000, 30000);
+  useVisibilityPolling(fetchPlayerProfile, 30000, 120000);
 
   // Check if player has been moved to bench — redirect back to join page
   useEffect(() => {
@@ -302,7 +302,7 @@ function PlayerView() {
     }
 
     checkBenchStatus();
-    const interval = setInterval(checkBenchStatus, 5000);
+    const interval = setInterval(checkBenchStatus, 15000);
     return () => clearInterval(interval);
   }, [sessionId, playerId, navigate]);
 

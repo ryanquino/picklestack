@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { getCasualMatchResults, updateMatchResult } from '../api';
+import { useVisibilityPolling } from '../hooks/useVisibilityPolling';
 import type { CasualMatchResult } from '../types';
 import PlayerAvatar from './PlayerAvatar';
 
@@ -40,11 +41,8 @@ export default function ResultsPanel({ sessionId, onChanged }: ResultsPanelProps
     }
   }, [sessionId]);
 
-  useEffect(() => {
-    fetchResults();
-    const interval = setInterval(fetchResults, 8000);
-    return () => clearInterval(interval);
-  }, [fetchResults]);
+  useEffect(() => { fetchResults(); }, [fetchResults]);
+  useVisibilityPolling(fetchResults, 15000, 60000);
 
   async function handleEditSaved() {
     setEditing(null);

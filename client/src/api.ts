@@ -28,6 +28,50 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** ETag cache for conditional requests — stores last ETag per path */
+const etagCache = new Map<string, string>();
+
+/**
+ * ETag-aware fetch. Returns null on 304 (caller should keep previous data).
+ */
+async function requestWithETag<T>(path: string): Promise<T | null> {
+  const url = `${BASE_URL}${path}`;
+  const headers: Record<string, string> = {};
+  const cached = etagCache.get(path);
+  if (cached) {
+    headers['If-None-Match'] = cached;
+  }
+
+  const res = await fetch(url, { headers });
+
+  if (res.status === 304) {
+    return null;
+  }
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: 'Request failed' }));
+    throw new Error(body.error || `Request failed with status ${res.status}`);
+  }
+
+  const newEtag = res.headers.get('ETag');
+  if (newEtag) {
+    etagCache.set(path, newEtag);
+  }
+
+  return res.json() as Promise<T>;
+}
+
+/** Clear ETag cache (useful after mutations) */
+export function clearETagCache(pathPattern?: string): void {
+  if (pathPattern) {
+    for (const key of etagCache.keys()) {
+      if (key.includes(pathPattern)) etagCache.delete(key);
+    }
+  } else {
+    etagCache.clear();
+  }
+}
+
 /** Create a new session */
 export function createSession(name: string, courtCount: number): Promise<Session> {
   return request<Session>('/sessions', {
@@ -51,8 +95,8 @@ export function getSession(sessionId: string): Promise<{
     startedAt: string;
     completedAt?: string;
   }[];
-}> {
-  return request(`/sessions/${sessionId}`);
+} | null> {
+  return requestWithETag(`/sessions/${sessionId}`);
 }
 
 /** Get session state for live view */
@@ -67,8 +111,8 @@ export function getSessionLive(sessionId: string): Promise<{
     status: string;
     startedAt: string;
   }[];
-}> {
-  return request(`/sessions/${sessionId}/live`);
+} | null> {
+  return requestWithETag(`/sessions/${sessionId}/live`);
 }
 
 /** Check in a player to a session */
@@ -580,4 +624,76 @@ export function startClubRaidMatch(
   return request(`/sessions/${sessionId}/club-raid/schedule/${clubRaidMatchId}/start`, {
     method: 'POST',
   });
+}
+
+// ============================================================
+// Blog API
+// ============================================================
+
+export interface BlogPost {
+  id: string;
+  title: string;
+  slug: string;
+  content: string;
+  excerpt: string;
+  coverImage: string | null;
+  author: string;
+  createdAt: string;
+  updatedAt: string;
+  comments?: BlogComment[];
+}
+
+export interface BlogComment {
+  id: string;
+  postId: string;
+  author: string;
+  content: string;
+  createdAt: string;
+}
+
+export function getBlogPosts(): Promise<BlogPost[]> {
+  return request('/blog');
+}
+
+export function getBlogPost(slug: string): Promise<BlogPost> {
+  return request(`/blog/${slug}`);
+}
+
+export function createBlogPost(data: {
+  title: string;
+  content: string;
+  excerpt?: string;
+  coverImage?: string | null;
+  author?: string;
+}): Promise<BlogPost> {
+  return request('/blog', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function updateBlogPost(
+  id: string,
+  data: Partial<Pick<BlogPost, 'title' | 'content' | 'excerpt' | 'coverImage' | 'author'>>
+): Promise<BlogPost> {
+  return request(`/blog/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
+export function deleteBlogPost(id: string): Promise<void> {
+  return request(`/blog/${id}`, { method: 'DELETE' });
+}
+
+export function addBlogComment(
+  postId: string,
+  data: { author: string; content: string }
+): Promise<BlogComment> {
+  return request(`/blog/${postId}/comments`, { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function uploadBlogImage(file: File): Promise<{ url: string }> {
+  const formData = new FormData();
+  formData.append('image', file);
+  const res = await fetch(`${BASE_URL}/blog/upload`, { method: 'POST', body: formData });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: 'Upload failed' }));
+    throw new Error(body.error || 'Upload failed');
+  }
+  return res.json();
 }

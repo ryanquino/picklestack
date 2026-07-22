@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getSession, addPlayer, removePlayer, movePlayer, startMatch, completeMatch, endSession, getLeaderboard, getSessionAchievements, setPairingMode, getFixedPairs, updatePlayerStarRating, joinQueue } from '../api';
+import { getSession, addPlayer, removePlayer, movePlayer, startMatch, completeMatch, endSession, getLeaderboard, setPairingMode, updatePlayerStarRating, joinQueue } from '../api';
 import { addSessionToHistory, updateSessionStatus, removeSessionFromHistory } from '../sessionHistory';
+import { useVisibilityPolling } from '../hooks/useVisibilityPolling';
 import QueuePanel from '../components/QueuePanel';
 import ScrollToTopButton from '../components/ScrollToTopButton';
 import HighlightsTicker from '../components/HighlightsTicker';
@@ -97,6 +98,7 @@ interface SessionState {
     achievements?: Achievement[];
   };
   achievements?: Achievement[];
+  fixedPairs?: FixedPair[];
   totalCompletedMatches?: number;
   completedMatches?: {
     id: string;
@@ -146,13 +148,9 @@ function OrganizerDashboard() {
   const loadSession = useCallback(async () => {
     if (!sessionId) return;
     try {
-      // Fire the independent fetches in parallel so the dashboard repaints as
-      // fast as possible after a match completes.
-      const [data, achievementsData, fixedPairsData] = await Promise.all([
-        getSession(sessionId),
-        getSessionAchievements(sessionId).catch(() => [] as Achievement[]),
-        getFixedPairs(sessionId).catch(() => [] as FixedPair[]),
-      ]);
+      // Single consolidated fetch — achievements & fixedPairs are included in /sessions/:id
+      const data = await getSession(sessionId);
+      if (!data) return; // 304 — nothing changed
       const sessionState = data as unknown as SessionState;
       setState(sessionState);
       setError(null);
@@ -182,7 +180,7 @@ function OrganizerDashboard() {
       }
 
       // Track achievement notifications
-      const currentAchievements = achievementsData as Achievement[];
+      const currentAchievements = (sessionState.achievements || []) as Achievement[];
       const prevAchievements = previousAchievementsRef.current;
 
       if (prevAchievements.length > 0) {
@@ -213,8 +211,8 @@ function OrganizerDashboard() {
 
       previousAchievementsRef.current = currentAchievements;
 
-      // Fixed pairs for the session
-      setFixedPairs(fixedPairsData as FixedPair[]);
+      // Fixed pairs for the session (from consolidated response)
+      setFixedPairs((sessionState.fixedPairs || []) as FixedPair[]);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to load session';
 
@@ -246,14 +244,10 @@ function OrganizerDashboard() {
     loadSession();
   }, [loadSession]);
 
-  // Auto-refresh session data every 5 seconds
-  useEffect(() => {
-    if (loading || error) return;
-    const interval = setInterval(() => {
-      loadSession();
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [loading, error, loadSession]);
+  // Auto-refresh with background-aware polling
+  useVisibilityPolling(() => {
+    if (!loading && !error) loadSession();
+  }, 8000, 30000);
 
   function handleDismissNotification(id: string) {
     setNotifications((prev) => prev.filter((n) => n.id !== id));

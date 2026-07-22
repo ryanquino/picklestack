@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import type { StarRating } from '../types';
 import { STAR_RATING_LABELS } from '../types';
 import { getSessionJoinInfo, addPlayer, getBenchPlayers, joinQueue, getAllPlayers, createFixedPair } from '../api';
+import { useVisibilityPolling } from '../hooks/useVisibilityPolling';
 
 const PLAYER_STORAGE_PREFIX = 'pickld_player_';
 
@@ -130,16 +131,16 @@ function JoinSession() {
       });
   }, [sessionId, navigate]);
 
-  // Poll for fresh data while on join page
-  useEffect(() => {
-    if (loading || checkedIn || error) return;
-    const interval = setInterval(() => {
+  // Poll for fresh data while on join page (background-aware)
+  const fetchAll = useCallback(() => {
+    if (!loading && !checkedIn && !error) {
       fetchSessionInfo();
       fetchBenchPlayers();
       fetchAllPlayers();
-    }, 5000);
-    return () => clearInterval(interval);
+    }
   }, [loading, checkedIn, error, fetchSessionInfo, fetchBenchPlayers, fetchAllPlayers]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useVisibilityPolling(fetchAll, 5000, 15000);
 
   // Close name dropdown on outside click
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { useParams } from 'react-router-dom';
 import { useEffect, useState, useCallback } from 'react';
 import { getSessionLive } from '../api';
+import { useStaleWhileRevalidate } from '../hooks/useStaleWhileRevalidate';
 import type { PlayerStats, Achievement, LeaderboardEntry, StarRating, GameMode, MatchingMode } from '../types';
 import Leaderboard from '../components/Leaderboard';
 import ScrollToTopButton from '../components/ScrollToTopButton';
@@ -154,41 +155,15 @@ function getOnDeckCount(gameMode: GameMode, matchingMode: MatchingMode, queueLen
 
 function LiveView() {
   const { sessionId } = useParams<{ sessionId: string }>();
-  const [state, setState] = useState<ViewState>({ kind: 'loading' });
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
 
-  const fetchLiveData = useCallback(async () => {
-    if (!sessionId) {
-      setState({ kind: 'not-found' });
-      return;
-    }
+  const { data, isStale, isLoading, error, refresh } = useStaleWhileRevalidate(
+    sessionId ? () => getSessionLive(sessionId) as unknown as Promise<LiveResponse | null> : () => Promise.resolve(null),
+    { revalidateInterval: 5000, backgroundInterval: 30000 }
+  );
 
-    try {
-      const data = await getSessionLive(sessionId) as unknown as LiveResponse;
-      if (data.session.status === 'ended') {
-        setState({ kind: 'ended', data });
-      } else {
-        setState({ kind: 'active', data });
-      }
-      setRefreshToken(t => t + 1);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Request failed';
-      if (message.toLowerCase().includes('not found')) {
-        setState({ kind: 'not-found' });
-      } else {
-        setState({ kind: 'error', message });
-      }
-    }
-  }, [sessionId]);
-
-  useEffect(() => {
-    fetchLiveData();
-    const interval = setInterval(fetchLiveData, 3000);
-    return () => clearInterval(interval);
-  }, [fetchLiveData]);
-
-  if (state.kind === 'loading') {
+  if (isLoading && !data) {
     return (
       <div className="live-view" role="status" aria-live="polite">
         <p>Loading session…</p>
@@ -196,7 +171,25 @@ function LiveView() {
     );
   }
 
-  if (state.kind === 'not-found') {
+  if (error && !data) {
+    const message = error.message.toLowerCase();
+    if (message.includes('not found')) {
+      return (
+        <div className="live-view">
+          <h1>Session not found</h1>
+          <p>The session you're looking for doesn't exist or has been removed.</p>
+        </div>
+      );
+    }
+    return (
+      <div className="live-view">
+        <h1>Error</h1>
+        <p>{error.message}</p>
+      </div>
+    );
+  }
+
+  if (!sessionId) {
     return (
       <div className="live-view">
         <h1>Session not found</h1>
@@ -205,131 +198,23 @@ function LiveView() {
     );
   }
 
-  if (state.kind === 'error') {
+  // Use stale data if we have it, otherwise show loading
+  const liveData = data;
+  if (!liveData) {
     return (
-      <div className="live-view">
-        <h1>Error</h1>
-        <p>{state.message}</p>
+      <div className="live-view" role="status" aria-live="polite">
+        <p>Loading session…</p>
       </div>
     );
   }
-
-  if (state.kind === 'ended') {
-    const { session, queue, activeMatches, playerStats, achievements, completedMatches, diversity } = state.data;
-    const totalPlayers = playerStats.length > 0 ? playerStats.length : queue.length;
-    const playersPerMatch = (session.gameMode === 'singles') ? 2 : 4;
-    const totalMatchesPlayed = playerStats.reduce((sum, p) => sum + p.matchesPlayed, 0);
-    const totalMatches = totalMatchesPlayed > 0 ? Math.round(totalMatchesPlayed / playersPerMatch) : activeMatches.length;
-    const leaderboardEntries = buildLeaderboard(playerStats, achievements, state.data.mvpPlayerId);
-
-    return (
-      <div className="organizer-dashboard">
-        <Navbar />
-        <h1>{session.name}</h1>
-        <p className="text-secondary">Open Play Summary</p>
-        <div className="live-view__ended">
-          {/* Summary Stats Card */}
-          <div className="session-summary-card card">
-            <div className="session-summary-card__stats">
-              <div className="session-summary-card__stat">
-                <span className="session-summary-card__value">{totalMatches}</span>
-                <span className="session-summary-card__label">Games</span>
-              </div>
-              <div className="session-summary-card__stat">
-                <span className="session-summary-card__value">
-                  {session.createdAt && session.updatedAt
-                    ? Math.round((new Date(session.updatedAt).getTime() - new Date(session.createdAt).getTime()) / 60000)
-                    : '—'}
-                </span>
-                <span className="session-summary-card__label">Minutes</span>
-              </div>
-              <div className="session-summary-card__stat">
-                <span className="session-summary-card__value">{session.courtCount}</span>
-                <span className="session-summary-card__label">Courts</span>
-              </div>
-              <div className="session-summary-card__stat">
-                <span className="session-summary-card__value">{totalPlayers}</span>
-                <span className="session-summary-card__label">Players</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Session Awards */}
-          {(state.data as any).sessionAwards && (state.data as any).sessionAwards.length > 0 && (
-            <SessionAwards awards={(state.data as any).sessionAwards} />
-          )}
-
-          {/* Leaderboard */}
-          {playerStats.length > 0 && (
-            <section aria-label="Final standings">
-              <LeaderboardCard playerStats={playerStats} />
-            </section>
-          )}
-
-          {/* Match Log */}
-          {completedMatches && completedMatches.length > 0 && (
-            <section aria-label="Match log" className="live-view__match-log">
-              <h2>Match Log</h2>
-              <div className="card">
-                <table className="leaderboard-card__table">
-                  <thead>
-                    <tr>
-                      <th scope="col" className="leaderboard-card__th">#</th>
-                      <th scope="col" className="leaderboard-card__th">Court</th>
-                      <th scope="col" className="leaderboard-card__th">Teams</th>
-                      <th scope="col" className="leaderboard-card__th">Score</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {completedMatches.map((match, index) => {
-                      const midpoint = Math.ceil(match.players.length / 2);
-                      const team1 = match.players.slice(0, midpoint);
-                      const team2 = match.players.slice(midpoint);
-                      return (
-                        <tr key={match.id} className="leaderboard-card__row">
-                          <td className="leaderboard-card__cell leaderboard-card__cell--rank">{index + 1}</td>
-                          <td className="leaderboard-card__cell">{match.courtNumber}</td>
-                          <td className="leaderboard-card__cell">
-                            <span style={match.winningTeam === 1 ? { color: 'var(--color-success)', fontWeight: 600 } : undefined}>{team1.join(', ')}</span>
-                            {' vs '}
-                            <span style={match.winningTeam === 2 ? { color: 'var(--color-success)', fontWeight: 600 } : undefined}>{team2.join(', ')}</span>
-                          </td>
-                          <td className="leaderboard-card__cell">
-                            {match.team1Score !== null && match.team2Score !== null
-                              ? `${match.team1Score}-${match.team2Score}`
-                              : match.winningTeam ? `Team ${match.winningTeam} won` : '—'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          )}
-        </div>
-
-        {selectedPlayerId && sessionId && (
-          <PlayerProfileCard
-            sessionId={sessionId}
-            playerId={selectedPlayerId}
-            onClose={() => setSelectedPlayerId(null)}
-            diversityPercentage={diversity?.[selectedPlayerId] ?? 0}
-          />
-        )}
-      </div>
-    );
-  }
-
-  // Active session
-  const { session, queue, activeMatches, playerStats, achievements, totalCompletedMatches, waitEstimates, diversity, completedMatches } = state.data;
-  const nextMatchPlayerIds: string[] = (state.data as any).nextMatchPlayerIds ?? [];
+  const { session, queue, activeMatches, playerStats, achievements, totalCompletedMatches, waitEstimates, diversity, completedMatches } = liveData;
+  const nextMatchPlayerIds: string[] = (liveData as any).nextMatchPlayerIds ?? [];
   const nextMatchSet = new Set(nextMatchPlayerIds);
   const gameMode = session.gameMode || 'doubles';
   const matchingMode = session.matchingMode || 'balanced';
   const onDeckCount = getOnDeckCount(gameMode, matchingMode, queue.length);
   const onDeckPlayers = queue.slice(0, onDeckCount);
-  const leaderboardEntries = buildLeaderboard(playerStats, achievements, state.data.mvpPlayerId);
+  const leaderboardEntries = buildLeaderboard(playerStats, achievements, liveData.mvpPlayerId);
   const courtNames = session.courtNames || {};
 
   const playersPerMatch = gameMode === 'singles' ? 2 : 4;
